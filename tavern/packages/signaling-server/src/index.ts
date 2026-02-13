@@ -7,8 +7,11 @@ import { RoomManager } from "./room-manager.js";
 import {
   parseClientMessage,
   type ServerErrorMessage,
+  type ServerPeerIdentityUpdatedMessage,
   type ServerPeerJoinedMessage,
+  type ServerPeerListMessage,
   type ServerPeerLeftMessage,
+  type PeerIdentity,
   type ServerRelayMessage
 } from "./types.js";
 
@@ -20,6 +23,7 @@ const parsedPort = rawPort ? Number.parseInt(rawPort, 10) : Number.NaN;
 const port = Number.isFinite(parsedPort) ? parsedPort : DEFAULT_PORT;
 
 const roomManager = new RoomManager(MAX_PEERS_PER_ROOM);
+const peerIdentityById = new Map<string, PeerIdentity>();
 
 const server = new WebSocketServer({ port, host: "0.0.0.0" });
 
@@ -72,9 +76,29 @@ server.on("connection", (socket, request) => {
         return;
       }
 
+      if (message.identity) {
+        peerIdentityById.set(peerId, message.identity);
+      } else {
+        peerIdentityById.delete(peerId);
+      }
+
+      const peerListMessage: ServerPeerListMessage = {
+        type: "peer-list",
+        peers: roomManager
+          .listPeerIds(roomId)
+          .filter((id) => id !== peerId)
+          .map((id) => ({
+            peerId: id,
+            identity: peerIdentityById.get(id)
+          }))
+      };
+
+      sendJson(socket, peerListMessage);
+
       const joinedMessage: ServerPeerJoinedMessage = {
         type: "peer-joined",
-        peerId
+        peerId,
+        identity: peerIdentityById.get(peerId)
       };
 
       roomManager.broadcastToRoom(roomId, JSON.stringify(joinedMessage), peerId);
@@ -93,10 +117,24 @@ server.on("connection", (socket, request) => {
       return;
     }
 
+    if (message.type === "update-identity") {
+      peerIdentityById.set(peerId, message.identity);
+
+      const updatedMessage: ServerPeerIdentityUpdatedMessage = {
+        type: "peer-identity-updated",
+        peerId,
+        identity: message.identity
+      };
+
+      roomManager.broadcastToRoom(roomId, JSON.stringify(updatedMessage), peerId);
+      return;
+    }
+
     if (message.type === "offer") {
       const relayMessage: ServerRelayMessage = {
         type: "offer",
         from: peerId,
+        identity: peerIdentityById.get(peerId),
         sdp: message.sdp
       };
 
@@ -112,6 +150,7 @@ server.on("connection", (socket, request) => {
       const relayMessage: ServerRelayMessage = {
         type: "answer",
         from: peerId,
+        identity: peerIdentityById.get(peerId),
         sdp: message.sdp
       };
 
@@ -122,6 +161,7 @@ server.on("connection", (socket, request) => {
     const relayMessage: ServerRelayMessage = {
       type: "ice-candidate",
       from: peerId,
+      identity: peerIdentityById.get(peerId),
       candidate: message.candidate
     };
 
@@ -129,12 +169,16 @@ server.on("connection", (socket, request) => {
   });
 
   socket.on("close", () => {
+    const identity = peerIdentityById.get(peerId);
+    peerIdentityById.delete(peerId);
+
     const leaveResult = roomManager.leaveRoom(peerId);
 
     if (leaveResult) {
       const peerLeftMessage: ServerPeerLeftMessage = {
         type: "peer-left",
-        peerId
+        peerId,
+        identity
       };
 
       roomManager.broadcastToRoom(leaveResult.roomId, JSON.stringify(peerLeftMessage), peerId);

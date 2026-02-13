@@ -40,6 +40,13 @@ export class RoomManager {
     getRoomForPeer(peerId) {
         return this.peerToRoom.get(peerId) ?? null;
     }
+    listPeerIds(roomId) {
+        const room = this.rooms.get(roomId);
+        if (!room) {
+            return [];
+        }
+        return Array.from(room.keys());
+    }
     sendToPeer(roomId, targetPeerId, payload) {
         const room = this.rooms.get(roomId);
         if (!room) {

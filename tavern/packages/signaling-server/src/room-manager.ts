@@ -70,6 +70,16 @@ export class RoomManager {
     return this.peerToRoom.get(peerId) ?? null;
   }
 
+  public listPeerIds(roomId: string): string[] {
+    const room = this.rooms.get(roomId);
+
+    if (!room) {
+      return [];
+    }
+
+    return Array.from(room.keys());
+  }
+
   public sendToPeer(roomId: string, targetPeerId: string, payload: string): boolean {
     const room = this.rooms.get(roomId);
 

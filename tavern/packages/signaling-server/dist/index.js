@@ -9,6 +9,7 @@ const rawPort = process.env.PORT;
 const parsedPort = rawPort ? Number.parseInt(rawPort, 10) : Number.NaN;
 const port = Number.isFinite(parsedPort) ? parsedPort : DEFAULT_PORT;
 const roomManager = new RoomManager(MAX_PEERS_PER_ROOM);
+const peerIdentityById = new Map();
 const server = new WebSocketServer({ port, host: "0.0.0.0" });
 const writeLog = (event, data) => {
     process.stdout.write(`${JSON.stringify({ timestamp: new Date().toISOString(), event, ...data })}\n`);
@@ -47,9 +48,27 @@ server.on("connection", (socket, request) => {
                 });
                 return;
             }
+            if (message.identity) {
+                peerIdentityById.set(peerId, message.identity);
+            }
+            else {
+                peerIdentityById.delete(peerId);
+            }
+            const peerListMessage = {
+                type: "peer-list",
+                peers: roomManager
+                    .listPeerIds(roomId)
+                    .filter((id) => id !== peerId)
+                    .map((id) => ({
+                    peerId: id,
+                    identity: peerIdentityById.get(id)
+                }))
+            };
+            sendJson(socket, peerListMessage);
             const joinedMessage = {
                 type: "peer-joined",
-                peerId
+                peerId,
+                identity: peerIdentityById.get(peerId)
             };
             roomManager.broadcastToRoom(roomId, JSON.stringify(joinedMessage), peerId);
             writeLog("room.joined", {
@@ -64,10 +83,21 @@ server.on("connection", (socket, request) => {
             writeLog("message.rejected", { peerId, reason: "not-in-room", type: message.type });
             return;
         }
+        if (message.type === "update-identity") {
+            peerIdentityById.set(peerId, message.identity);
+            const updatedMessage = {
+                type: "peer-identity-updated",
+                peerId,
+                identity: message.identity
+            };
+            roomManager.broadcastToRoom(roomId, JSON.stringify(updatedMessage), peerId);
+            return;
+        }
         if (message.type === "offer") {
             const relayMessage = {
                 type: "offer",
                 from: peerId,
+                identity: peerIdentityById.get(peerId),
                 sdp: message.sdp
             };
             if (message.target) {
@@ -82,6 +112,7 @@ server.on("connection", (socket, request) => {
             const relayMessage = {
                 type: "answer",
                 from: peerId,
+                identity: peerIdentityById.get(peerId),
                 sdp: message.sdp
             };
             roomManager.sendToPeer(roomId, message.target, JSON.stringify(relayMessage));
@@ -90,16 +121,20 @@ server.on("connection", (socket, request) => {
         const relayMessage = {
             type: "ice-candidate",
             from: peerId,
+            identity: peerIdentityById.get(peerId),
             candidate: message.candidate
         };
         roomManager.sendToPeer(roomId, message.target, JSON.stringify(relayMessage));
     });
     socket.on("close", () => {
+        const identity = peerIdentityById.get(peerId);
+        peerIdentityById.delete(peerId);
         const leaveResult = roomManager.leaveRoom(peerId);
         if (leaveResult) {
             const peerLeftMessage = {
                 type: "peer-left",
-                peerId
+                peerId,
+                identity
             };
             roomManager.broadcastToRoom(leaveResult.roomId, JSON.stringify(peerLeftMessage), peerId);
             writeLog("peer.disconnected", {

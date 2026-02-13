@@ -8,18 +8,48 @@
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
-    <main class="panel">
-      <h1 id="title">Tavern - Room: ...</h1>
-      <p id="status">Status: Connecting</p>
-      <p id="local-speaking">You: silent</p>
+    <main class="tavern-panel">
+      <h1 id="title" class="tavern-title">Tavern - Room: ...</h1>
+      <p id="status" class="tavern-status">Status: Connecting</p>
+      <p id="local-identity" class="tavern-status-bar">You: Unknown | Mic On | PTT: OFF</p>
+
+      <section class="tavern-identity-section" aria-label="Identity settings">
+        <label for="display-name-input" class="tavern-field-label">Display Name</label>
+        <div class="tavern-input-row">
+          <input
+            id="display-name-input"
+            class="tavern-input"
+            type="text"
+            maxlength="32"
+            placeholder="Enter display name"
+          />
+          <button id="display-name-set" type="button" class="tavern-button tavern-button-primary">
+            Set
+          </button>
+        </div>
+        <div class="tavern-identity-actions">
+          <button id="export-identity" type="button" class="tavern-button tavern-button-secondary">
+            Export Identity
+          </button>
+          <button id="import-identity" type="button" class="tavern-button tavern-button-secondary">
+            Import Identity
+          </button>
+          <input id="import-identity-file" type="file" accept=".tavern-key" hidden />
+        </div>
+      </section>
+
+      <p id="local-speaking" class="tavern-muted">You: silent</p>
       <p id="noise-status" class="state-on">Noise Suppression: ON</p>
-      <button id="noise-toggle" type="button">Noise Suppression: ON</button>
-      <p id="vad-status" class="state-on">🟢 Voice Detected</p>
-      <button id="vad-toggle" type="button" class="state-on">VAD: ON</button>
+      <button id="noise-toggle" type="button" class="tavern-button">Noise Suppression: ON</button>
+      <p id="vad-status" class="state-on">Voice Detected</p>
+      <button id="vad-toggle" type="button" class="tavern-button state-on">VAD: ON</button>
       <p id="ptt-status" class="state-off">PTT disabled</p>
-      <button id="ptt-toggle" type="button" class="state-off">PTT: OFF</button>
-      <ul id="peer-list" aria-label="Connected peers"></ul>
-      <button id="mute-button" type="button">Mute</button>
+      <button id="ptt-toggle" type="button" class="tavern-button state-off">PTT: OFF</button>
+
+      <h2 class="tavern-subtitle">Peers</h2>
+      <ul id="peer-list" class="tavern-peer-list" aria-label="Connected peers"></ul>
+
+      <button id="mute-button" type="button" class="tavern-button tavern-button-primary">Mute</button>
     </main>
     <script type="module" src="./bundle.js"></script>
   </body>

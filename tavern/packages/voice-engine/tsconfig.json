@@ -10,5 +10,5 @@
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "noEmitOnError": true
   },
-  "include": ["src/**/*.ts", "../shared/src/**/*.ts"]
+  "include": ["src/**/*.ts", "../shared/src/**/*.ts", "../crypto/src/**/*.ts"]
 }

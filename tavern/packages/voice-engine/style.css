@@ -1,11 +1,21 @@
-/* Minimal dark-theme styling for the browser voice proof-of-concept. */
 :root {
-  --bg: #1a1a2e;
-  --panel: #22223b;
-  --text: #f4f4f8;
-  --muted: #aeb0c2;
-  --speaking: #1ad26e;
-  --silent: #7d8099;
+  --tavern-bg-primary: #1a1a2e;
+  --tavern-bg-secondary: #16213e;
+  --tavern-text-color: #e0e0e0;
+  --tavern-text-muted: #888888;
+  --tavern-accent: #e94560;
+  --tavern-accent-hover: #ff6b81;
+  --tavern-channel-hover: #1a1a3e;
+  --tavern-sidebar-bg: #0f0f1a;
+  --tavern-border: #2a2a4a;
+  --tavern-radius: 8px;
+  --tavern-space-1: 6px;
+  --tavern-space-2: 10px;
+  --tavern-space-3: 14px;
+  --tavern-space-4: 18px;
+  --tavern-space-5: 22px;
+  --tavern-peer-speaking: #24d07d;
+  --tavern-peer-silent: #6e738e;
 }
 
 * {
@@ -15,78 +25,167 @@
 body {
   margin: 0;
   min-height: 100vh;
-  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
-  color: var(--text);
-  background: radial-gradient(circle at top, #25254a, var(--bg) 65%);
   display: grid;
   place-items: center;
+  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+  color: var(--tavern-text-color);
+  background: radial-gradient(circle at top, var(--tavern-channel-hover), var(--tavern-bg-primary) 65%);
 }
 
-.panel {
-  width: min(560px, calc(100vw - 2rem));
-  padding: 1.2rem;
-  border: 1px solid #3a3d5f;
-  border-radius: 0.8rem;
-  background: color-mix(in srgb, var(--panel) 88%, black);
+.tavern-panel {
+  width: min(640px, calc(100vw - calc(var(--tavern-space-4) * 2)));
+  padding: var(--tavern-space-4);
+  border: 1px solid var(--tavern-border);
+  border-radius: var(--tavern-radius);
+  background: color-mix(in srgb, var(--tavern-bg-secondary) 88%, black);
+  display: grid;
+  gap: var(--tavern-space-2);
 }
 
-h1 {
-  margin: 0 0 1rem;
+.tavern-title,
+.tavern-subtitle {
+  margin: 0;
+}
+
+.tavern-title {
   font-size: 1.3rem;
 }
 
-p {
-  margin: 0.5rem 0;
+.tavern-subtitle {
+  font-size: 1rem;
+  color: var(--tavern-text-muted);
 }
 
-.state-on {
-  color: var(--speaking);
+.tavern-status,
+.tavern-status-bar,
+.tavern-muted,
+#noise-status,
+#vad-status,
+#ptt-status {
+  margin: 0;
 }
 
-.state-off {
-  color: var(--silent);
+.tavern-status-bar {
+  color: var(--tavern-text-color);
 }
 
-#peer-list {
-  margin: 0.8rem 0 1rem;
-  padding: 0;
-  list-style: none;
+.tavern-muted {
+  color: var(--tavern-text-muted);
 }
 
-#peer-list li {
-  margin: 0.4rem 0;
-  color: var(--muted);
+.tavern-identity-section {
+  padding: var(--tavern-space-3);
+  border: 1px solid var(--tavern-border);
+  border-radius: var(--tavern-radius);
+  background: var(--tavern-sidebar-bg);
+  display: grid;
+  gap: var(--tavern-space-2);
 }
 
-.dot {
-  display: inline-block;
-  width: 0.65rem;
-  height: 0.65rem;
-  border-radius: 999px;
-  margin-right: 0.5rem;
-  vertical-align: middle;
+.tavern-field-label {
+  color: var(--tavern-text-muted);
+  font-size: 0.9rem;
 }
 
-.dot.speaking {
-  background: var(--speaking);
+.tavern-input-row,
+.tavern-identity-actions {
+  display: flex;
+  gap: var(--tavern-space-2);
+  flex-wrap: wrap;
 }
 
-.dot.silent {
-  background: var(--silent);
+.tavern-input {
+  flex: 1;
+  min-width: 180px;
+  border: 1px solid var(--tavern-border);
+  border-radius: var(--tavern-radius);
+  padding: var(--tavern-space-2);
+  background: var(--tavern-bg-primary);
+  color: var(--tavern-text-color);
 }
 
-button {
-  display: block;
-  margin: 0.4rem 0;
-  border: 0;
-  background: #33415c;
-  color: var(--text);
-  padding: 0.55rem 0.85rem;
-  border-radius: 0.5rem;
+.tavern-input:focus {
+  outline: 1px solid var(--tavern-accent);
+}
+
+.tavern-button {
+  border: 1px solid var(--tavern-border);
+  border-radius: var(--tavern-radius);
+  padding: var(--tavern-space-2) var(--tavern-space-3);
+  color: var(--tavern-text-color);
+  background: var(--tavern-bg-secondary);
   cursor: pointer;
 }
 
-button:disabled {
+.tavern-button:hover {
+  background: var(--tavern-channel-hover);
+}
+
+.tavern-button-primary {
+  background: var(--tavern-accent);
+  border-color: var(--tavern-accent);
+}
+
+.tavern-button-primary:hover {
+  background: var(--tavern-accent-hover);
+  border-color: var(--tavern-accent-hover);
+}
+
+.tavern-button-secondary {
+  background: var(--tavern-bg-primary);
+}
+
+.tavern-button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.state-on {
+  color: var(--tavern-peer-speaking);
+}
+
+.state-off {
+  color: var(--tavern-peer-silent);
+}
+
+.tavern-peer-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--tavern-space-1);
+}
+
+.tavern-peer-row {
+  display: flex;
+  align-items: center;
+  gap: var(--tavern-space-2);
+  color: var(--tavern-text-muted);
+}
+
+.tavern-peer-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+
+.tavern-peer-dot-speaking {
+  background: var(--tavern-peer-speaking);
+}
+
+.tavern-peer-dot-silent {
+  background: var(--tavern-peer-silent);
+}
+
+@media (max-width: 640px) {
+  .tavern-panel {
+    width: calc(100vw - calc(var(--tavern-space-3) * 2));
+    padding: var(--tavern-space-3);
+  }
+
+  .tavern-button,
+  .tavern-input {
+    width: 100%;
+  }
 }

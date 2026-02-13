@@ -2,9 +2,21 @@
 
 export type PeerSignalType = "offer" | "answer" | "ice-candidate";
 
+export type PeerIdentity = {
+  publicKeyHex: string;
+  tag: string;
+  displayName: string | null;
+};
+
 export type ClientJoinMessage = {
   type: "join";
   room: string;
+  identity?: PeerIdentity;
+};
+
+export type ClientUpdateIdentityMessage = {
+  type: "update-identity";
+  identity: PeerIdentity;
 };
 
 export type ClientOfferMessage = {
@@ -27,6 +39,7 @@ export type ClientIceCandidateMessage = {
 
 export type ClientMessage =
   | ClientJoinMessage
+  | ClientUpdateIdentityMessage
   | ClientOfferMessage
   | ClientAnswerMessage
   | ClientIceCandidateMessage;
@@ -34,16 +47,33 @@ export type ClientMessage =
 export type ServerPeerJoinedMessage = {
   type: "peer-joined";
   peerId: string;
+  identity?: PeerIdentity;
 };
 
 export type ServerPeerLeftMessage = {
   type: "peer-left";
   peerId: string;
+  identity?: PeerIdentity;
+};
+
+export type ServerPeerListMessage = {
+  type: "peer-list";
+  peers: Array<{
+    peerId: string;
+    identity?: PeerIdentity;
+  }>;
+};
+
+export type ServerPeerIdentityUpdatedMessage = {
+  type: "peer-identity-updated";
+  peerId: string;
+  identity: PeerIdentity;
 };
 
 export type ServerRelayMessage = {
   type: PeerSignalType;
   from: string;
+  identity?: PeerIdentity;
   sdp?: string;
   candidate?: string;
 };
@@ -63,12 +93,40 @@ const hasNonEmptyString = (value: unknown): value is string => {
   return typeof value === "string" && value.trim().length > 0;
 };
 
+const isIdentity = (value: unknown): value is PeerIdentity => {
+  if (!isObject(value)) {
+    return false;
+  }
+
+  return (
+    hasNonEmptyString(value.publicKeyHex) &&
+    hasNonEmptyString(value.tag) &&
+    (typeof value.displayName === "string" || value.displayName === null)
+  );
+};
+
 export const isJoinMessage = (value: unknown): value is ClientJoinMessage => {
   if (!isObject(value) || value.type !== "join") {
     return false;
   }
 
-  return hasNonEmptyString(value.room);
+  if (!hasNonEmptyString(value.room)) {
+    return false;
+  }
+
+  if (typeof value.identity === "undefined") {
+    return true;
+  }
+
+  return isIdentity(value.identity);
+};
+
+export const isUpdateIdentityMessage = (value: unknown): value is ClientUpdateIdentityMessage => {
+  if (!isObject(value) || value.type !== "update-identity") {
+    return false;
+  }
+
+  return isIdentity(value.identity);
 };
 
 export const isOfferMessage = (value: unknown): value is ClientOfferMessage => {
@@ -117,6 +175,10 @@ export const parseClientMessage = (raw: string): ClientMessage | null => {
   }
 
   if (isOfferMessage(parsed)) {
+    return parsed;
+  }
+
+  if (isUpdateIdentityMessage(parsed)) {
     return parsed;
   }
 
