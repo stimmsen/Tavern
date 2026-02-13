@@ -1,0 +1,57 @@
+{
+  "name": "@shiguredo/rnnoise-wasm",
+  "version": "2025.1.5",
+  "description": "WebAssembly build of RNNoise",
+  "type": "module",
+  "main": "dist/rnnoise.js",
+  "module": "dist/rnnoise.js",
+  "exports": {
+    ".": {
+      "types": "./dist/rnnoise.d.ts",
+      "import": "./dist/rnnoise.js"
+    }
+  },
+  "scripts": {
+    "dev": "vite dev --config devtools/vite.config.ts",
+    "build:devtools": "vite build --config devtools/vite.config.ts",
+    "preview:devtools": "vite preview --config devtools/vite.config.ts",
+    "build": "vite build",
+    "lint": "biome lint",
+    "fmt": "biome format --write",
+    "test": "vitest run",
+    "e2e-test": "playwright test --config playwright.config.ts",
+    "doc": "typedoc"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shiguredo/rnnoise-wasm.git"
+  },
+  "keywords": [
+    "rnnoise",
+    "noise-suppression"
+  ],
+  "author": "Shiguredo Inc.",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://discord.gg/shiguredo"
+  },
+  "homepage": "https://github.com/shiguredo/rnnoise-wasm#readme",
+  "files": [
+    "dist"
+  ],
+  "devDependencies": {
+    "@biomejs/biome": "1.9.4",
+    "@playwright/test": "1.52.0",
+    "@types/emscripten": "1.40.1",
+    "@types/node": "22.15.15",
+    "tslib": "2.8.1",
+    "typedoc": "0.28.4",
+    "typescript": "5.8.3",
+    "vite": "6.3.5",
+    "vite-plugin-dts": "4.5.3"
+  },
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=10"
+  }
+}

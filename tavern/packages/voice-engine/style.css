@@ -1,0 +1,92 @@
+/* Minimal dark-theme styling for the browser voice proof-of-concept. */
+:root {
+  --bg: #1a1a2e;
+  --panel: #22223b;
+  --text: #f4f4f8;
+  --muted: #aeb0c2;
+  --speaking: #1ad26e;
+  --silent: #7d8099;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+  color: var(--text);
+  background: radial-gradient(circle at top, #25254a, var(--bg) 65%);
+  display: grid;
+  place-items: center;
+}
+
+.panel {
+  width: min(560px, calc(100vw - 2rem));
+  padding: 1.2rem;
+  border: 1px solid #3a3d5f;
+  border-radius: 0.8rem;
+  background: color-mix(in srgb, var(--panel) 88%, black);
+}
+
+h1 {
+  margin: 0 0 1rem;
+  font-size: 1.3rem;
+}
+
+p {
+  margin: 0.5rem 0;
+}
+
+.state-on {
+  color: var(--speaking);
+}
+
+.state-off {
+  color: var(--silent);
+}
+
+#peer-list {
+  margin: 0.8rem 0 1rem;
+  padding: 0;
+  list-style: none;
+}
+
+#peer-list li {
+  margin: 0.4rem 0;
+  color: var(--muted);
+}
+
+.dot {
+  display: inline-block;
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 999px;
+  margin-right: 0.5rem;
+  vertical-align: middle;
+}
+
+.dot.speaking {
+  background: var(--speaking);
+}
+
+.dot.silent {
+  background: var(--silent);
+}
+
+button {
+  display: block;
+  margin: 0.4rem 0;
+  border: 0;
+  background: #33415c;
+  color: var(--text);
+  padding: 0.55rem 0.85rem;
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

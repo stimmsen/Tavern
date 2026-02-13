@@ -1,0 +1,19 @@
+{
+  "name": "@tavern/voice-engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Minimal browser voice client for Tavern WebRTC mesh calls.",
+  "scripts": {
+    "build": "esbuild src/index.ts --bundle --outfile=bundle.js --format=esm --platform=browser && esbuild src/rnnoise-worklet-processor.ts --bundle --outfile=rnnoise-worklet-processor.js --format=esm --platform=browser",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "dev": "npx serve ."
+  },
+  "devDependencies": {
+    "esbuild": "^0.27.3",
+    "typescript": "^5.8.2"
+  },
+  "dependencies": {
+    "@shiguredo/rnnoise-wasm": "^2025.1.5"
+  }
+}
