@@ -1,4 +1,45 @@
+# Dependencies
 **/node_modules/
-*.pdb
+
+# Build outputs
+**/dist/
 **/target/
+**/bundle.js
+
+# Database files
+*.db
+*.db-wal
+*.db-shm
+**/signaling-server/data/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor / IDE
+.vscode/settings.json
+*.swp
+*.swo
+
+# Debug
+*.pdb
+
+# Tauri generated (reproducible via `cargo build`)
+**/src-tauri/gen/schemas/
+
+# Test artifacts
+coverage/
+*.tsbuildinfo
+
+# Lock files in subpackages (root package-lock.json is the source of truth)
+**/packages/*/package-lock.json
+**/src-tauri/Cargo.lock
+
+# Project planning (local only)
 DONEXT.md
