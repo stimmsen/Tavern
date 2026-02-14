@@ -16,7 +16,7 @@ type PeerManagerOptions = {
   localStream: MediaStream;
   iceServers: RTCIceServer[];
   sendSignal: (message: SignalSendMessage) => void;
-  onRemoteStream: (peerId: string, stream: MediaStream) => void;
+  onRemoteStream: (peerId: string, stream: MediaStream) => MediaStream | void;
   onPeerRemoved: (peerId: string) => void;
 };
 
@@ -84,11 +84,33 @@ export class PeerManager {
         return;
       }
 
-      entry.audioElement.srcObject = stream;
-      this.onRemoteStream(peerId, stream);
+      const playbackStream = this.onRemoteStream(peerId, stream);
+      entry.audioElement.srcObject = playbackStream ?? stream;
     };
 
     connection.onconnectionstatechange = () => {
+      if (connection.connectionState === "failed") {
+        void (async () => {
+          try {
+            const offer = await connection.createOffer({ iceRestart: true });
+            await connection.setLocalDescription(offer);
+
+            if (!connection.localDescription?.sdp) {
+              return;
+            }
+
+            this.sendSignal({
+              type: "offer",
+              target: peerId,
+              sdp: connection.localDescription.sdp
+            });
+          } catch {
+            this.removePeer(peerId);
+          }
+        })();
+        return;
+      }
+
       if (connection.connectionState === "disconnected" || connection.connectionState === "closed") {
         this.removePeer(peerId);
       }
@@ -178,6 +200,38 @@ export class PeerManager {
     entry.audioElement.remove();
     this.peers.delete(peerId);
     this.onPeerRemoved(peerId);
+  }
+
+  public async setOutputDevice(deviceId: string | null): Promise<void> {
+    for (const entry of this.peers.values()) {
+      const elementWithSink = entry.audioElement as HTMLAudioElement & {
+        setSinkId?: (value: string) => Promise<void>;
+      };
+
+      if (!elementWithSink.setSinkId) {
+        continue;
+      }
+
+      try {
+        await elementWithSink.setSinkId(deviceId ?? "default");
+      } catch {
+        // Ignore sink errors on unsupported platforms/devices.
+      }
+    }
+  }
+
+  public async replaceOutgoingTrack(track: MediaStreamTrack): Promise<void> {
+    for (const entry of this.peers.values()) {
+      const sender = entry.connection
+        .getSenders()
+        .find((candidate) => candidate.track?.kind === "audio");
+
+      if (!sender) {
+        continue;
+      }
+
+      await sender.replaceTrack(track);
+    }
   }
 
   public dispose(): void {

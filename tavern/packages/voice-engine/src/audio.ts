@@ -8,6 +8,19 @@ export type AudioMonitorStop = () => void;
 
 type LocalAudioOptions = {
   noiseSuppressor: NoiseSuppressor;
+  inputDeviceId?: string | null;
+};
+
+const requestMicrophoneStream = async (inputDeviceId?: string | null): Promise<MediaStream> => {
+  if (inputDeviceId) {
+    return navigator.mediaDevices.getUserMedia({
+      audio: {
+        deviceId: { exact: inputDeviceId }
+      }
+    });
+  }
+
+  return navigator.mediaDevices.getUserMedia({ audio: true });
 };
 
 const createMonitor = (
@@ -59,19 +72,20 @@ export const createLocalAudioController = async (
   outgoingTrack: MediaStreamTrack;
   isMuted: () => boolean;
   toggleMute: () => boolean;
+  setInputDevice: (deviceId: string | null) => Promise<MediaStreamTrack>;
   monitorSpeaking: (onSpeakingChange: (speaking: boolean) => void) => AudioMonitorStop;
   dispose: () => void;
 }> => {
-  const microphoneStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-  const [microphoneTrack] = microphoneStream.getAudioTracks();
+  let microphoneStream = await requestMicrophoneStream(options.inputDeviceId);
+  let [microphoneTrack] = microphoneStream.getAudioTracks();
 
   if (!microphoneTrack) {
     throw new Error("Microphone track is unavailable");
   }
 
   const audioContext = new AudioContext({ sampleRate: 48_000 });
-  const sourceNode = audioContext.createMediaStreamSource(microphoneStream);
-  const processorNode = await options.noiseSuppressor.createProcessorNode(audioContext, sourceNode);
+  let sourceNode = audioContext.createMediaStreamSource(microphoneStream);
+  let processorNode = await options.noiseSuppressor.createProcessorNode(audioContext, sourceNode);
   const destinationNode = audioContext.createMediaStreamDestination();
   processorNode.connect(destinationNode);
 
@@ -87,6 +101,33 @@ export const createLocalAudioController = async (
   const toggleMute = (): boolean => {
     microphoneTrack.enabled = !microphoneTrack.enabled;
     return !microphoneTrack.enabled;
+  };
+
+  const setInputDevice = async (deviceId: string | null): Promise<MediaStreamTrack> => {
+    const nextMicStream = await requestMicrophoneStream(deviceId);
+    const [nextMicrophoneTrack] = nextMicStream.getAudioTracks();
+
+    if (!nextMicrophoneTrack) {
+      throw new Error("Microphone track is unavailable");
+    }
+
+    const nextSource = audioContext.createMediaStreamSource(nextMicStream);
+    const nextProcessor = await options.noiseSuppressor.createProcessorNode(audioContext, nextSource);
+    nextProcessor.connect(destinationNode);
+
+    processorNode.disconnect();
+    sourceNode.disconnect();
+
+    for (const track of microphoneStream.getTracks()) {
+      track.stop();
+    }
+
+    microphoneStream = nextMicStream;
+    microphoneTrack = nextMicrophoneTrack;
+    sourceNode = nextSource;
+    processorNode = nextProcessor;
+
+    return outgoingTrack;
   };
 
   const dispose = (): void => {
@@ -109,6 +150,7 @@ export const createLocalAudioController = async (
     outgoingTrack,
     isMuted,
     toggleMute,
+    setInputDevice,
     monitorSpeaking: (onSpeakingChange) => createMonitor(audioContext, microphoneStream, onSpeakingChange),
     dispose
   };

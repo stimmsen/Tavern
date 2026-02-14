@@ -1,0 +1,13 @@
+:root {
+  --tavern-bg-primary: #0a0a0a;
+  --tavern-bg-secondary: #111111;
+  --tavern-text-color: #00ff41;
+  --tavern-text-muted: #00aa2a;
+  --tavern-accent: #00ff41;
+  --tavern-accent-hover: #33ff66;
+  --tavern-channel-hover: #1a1a1a;
+  --tavern-sidebar-bg: #050505;
+  --tavern-border: #1a3a1a;
+  --tavern-radius: 2px;
+  --tavern-font: "Courier New", "Consolas", monospace;
+}

@@ -85,6 +85,24 @@ export class PushToTalk {
     this.outgoingTrack = null;
   }
 
+  public press(): void {
+    if (!this.enabled || !this.outgoingTrack) {
+      return;
+    }
+
+    this.transmitting = true;
+    this.outgoingTrack.enabled = true;
+  }
+
+  public release(): void {
+    if (!this.enabled || !this.outgoingTrack) {
+      return;
+    }
+
+    this.transmitting = false;
+    this.outgoingTrack.enabled = false;
+  }
+
   private readonly handleKeyDown = (event: KeyboardEvent): void => {
     if (!this.enabled || !this.outgoingTrack) {
       return;
@@ -94,8 +112,7 @@ export class PushToTalk {
       return;
     }
 
-    this.transmitting = true;
-    this.outgoingTrack.enabled = true;
+    this.press();
   };
 
   private readonly handleKeyUp = (event: KeyboardEvent): void => {
@@ -107,7 +124,6 @@ export class PushToTalk {
       return;
     }
 
-    this.transmitting = false;
-    this.outgoingTrack.enabled = false;
+    this.release();
   };
 }

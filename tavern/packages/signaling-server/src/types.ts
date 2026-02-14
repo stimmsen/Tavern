@@ -1,17 +1,69 @@
-// Type definitions and runtime guards for signaling protocol messages.
-
-export type PeerSignalType = "offer" | "answer" | "ice-candidate";
-
-export type PeerIdentity = {
+export interface PeerIdentity {
   publicKeyHex: string;
   tag: string;
   displayName: string | null;
-};
+}
+
+export interface PeerInfo {
+  publicKeyHex: string;
+  displayName: string;
+  tavernId: string;
+  channelId: string;
+  isSpeaking: boolean;
+  tag?: string;
+}
+
+export interface Channel {
+  id: string;
+  name: string;
+  peers: PeerInfo[];
+}
+
+export interface Tavern {
+  id: string;
+  name: string;
+  icon?: string;
+  channels: Channel[];
+  createdBy: string;
+  createdAt: string;
+}
+
+export type PeerSignalType = "offer" | "answer" | "ice-candidate";
 
 export type ClientJoinMessage = {
   type: "join";
   room: string;
   identity?: PeerIdentity;
+};
+
+export type ClientCreateTavernMessage = {
+  type: "create-tavern";
+  name: string;
+  icon?: string;
+};
+
+export type ClientJoinChannelMessage = {
+  type: "join-channel";
+  tavernId: string;
+  channelId: string;
+  identity: Pick<PeerIdentity, "publicKeyHex" | "displayName" | "tag">;
+};
+
+export type ClientLeaveChannelMessage = {
+  type: "leave-channel";
+  tavernId: string;
+  channelId: string;
+};
+
+export type ClientGetTavernInfoMessage = {
+  type: "get-tavern-info";
+  tavernId: string;
+};
+
+export type ClientCreateChannelMessage = {
+  type: "create-channel";
+  tavernId: string;
+  name: string;
 };
 
 export type ClientUpdateIdentityMessage = {
@@ -23,22 +75,33 @@ export type ClientOfferMessage = {
   type: "offer";
   sdp: string;
   target?: string;
+  tavernId?: string;
+  channelId?: string;
 };
 
 export type ClientAnswerMessage = {
   type: "answer";
   sdp: string;
   target: string;
+  tavernId?: string;
+  channelId?: string;
 };
 
 export type ClientIceCandidateMessage = {
   type: "ice-candidate";
   candidate: string;
   target: string;
+  tavernId?: string;
+  channelId?: string;
 };
 
 export type ClientMessage =
   | ClientJoinMessage
+  | ClientCreateTavernMessage
+  | ClientJoinChannelMessage
+  | ClientLeaveChannelMessage
+  | ClientGetTavernInfoMessage
+  | ClientCreateChannelMessage
   | ClientUpdateIdentityMessage
   | ClientOfferMessage
   | ClientAnswerMessage
@@ -70,10 +133,49 @@ export type ServerPeerIdentityUpdatedMessage = {
   identity: PeerIdentity;
 };
 
+export type ServerTavernCreatedMessage = {
+  type: "tavern-created";
+  tavern: Tavern;
+};
+
+export type ServerChannelJoinedMessage = {
+  type: "channel-joined";
+  tavernId: string;
+  channelId: string;
+  peers: PeerInfo[];
+};
+
+export type ServerPeerJoinedChannelMessage = {
+  type: "peer-joined-channel";
+  tavernId: string;
+  channelId: string;
+  peer: PeerInfo;
+};
+
+export type ServerPeerLeftChannelMessage = {
+  type: "peer-left-channel";
+  tavernId: string;
+  channelId: string;
+  publicKeyHex: string;
+};
+
+export type ServerTavernInfoMessage = {
+  type: "tavern-info";
+  tavern: Tavern;
+};
+
+export type ServerChannelCreatedMessage = {
+  type: "channel-created";
+  tavernId: string;
+  channel: Channel;
+};
+
 export type ServerRelayMessage = {
   type: PeerSignalType;
   from: string;
   identity?: PeerIdentity;
+  tavernId?: string;
+  channelId?: string;
   sdp?: string;
   candidate?: string;
 };
@@ -93,6 +195,10 @@ const hasNonEmptyString = (value: unknown): value is string => {
   return typeof value === "string" && value.trim().length > 0;
 };
 
+const isOptionalString = (value: unknown): value is string | undefined => {
+  return typeof value === "undefined" || typeof value === "string";
+};
+
 const isIdentity = (value: unknown): value is PeerIdentity => {
   if (!isObject(value)) {
     return false;
@@ -103,6 +209,12 @@ const isIdentity = (value: unknown): value is PeerIdentity => {
     hasNonEmptyString(value.tag) &&
     (typeof value.displayName === "string" || value.displayName === null)
   );
+};
+
+const isJoinChannelIdentity = (
+  value: unknown
+): value is Pick<PeerIdentity, "publicKeyHex" | "displayName" | "tag"> => {
+  return isIdentity(value);
 };
 
 export const isJoinMessage = (value: unknown): value is ClientJoinMessage => {
@@ -119,6 +231,50 @@ export const isJoinMessage = (value: unknown): value is ClientJoinMessage => {
   }
 
   return isIdentity(value.identity);
+};
+
+export const isCreateTavernMessage = (value: unknown): value is ClientCreateTavernMessage => {
+  if (!isObject(value) || value.type !== "create-tavern") {
+    return false;
+  }
+
+  return hasNonEmptyString(value.name) && isOptionalString(value.icon);
+};
+
+export const isJoinChannelMessage = (value: unknown): value is ClientJoinChannelMessage => {
+  if (!isObject(value) || value.type !== "join-channel") {
+    return false;
+  }
+
+  return (
+    hasNonEmptyString(value.tavernId) &&
+    hasNonEmptyString(value.channelId) &&
+    isJoinChannelIdentity(value.identity)
+  );
+};
+
+export const isLeaveChannelMessage = (value: unknown): value is ClientLeaveChannelMessage => {
+  if (!isObject(value) || value.type !== "leave-channel") {
+    return false;
+  }
+
+  return hasNonEmptyString(value.tavernId) && hasNonEmptyString(value.channelId);
+};
+
+export const isGetTavernInfoMessage = (value: unknown): value is ClientGetTavernInfoMessage => {
+  if (!isObject(value) || value.type !== "get-tavern-info") {
+    return false;
+  }
+
+  return hasNonEmptyString(value.tavernId);
+};
+
+export const isCreateChannelMessage = (value: unknown): value is ClientCreateChannelMessage => {
+  if (!isObject(value) || value.type !== "create-channel") {
+    return false;
+  }
+
+  return hasNonEmptyString(value.tavernId) && hasNonEmptyString(value.name);
 };
 
 export const isUpdateIdentityMessage = (value: unknown): value is ClientUpdateIdentityMessage => {
@@ -138,11 +294,19 @@ export const isOfferMessage = (value: unknown): value is ClientOfferMessage => {
     return false;
   }
 
-  if (typeof value.target === "undefined") {
-    return true;
+  if (typeof value.target !== "undefined" && !hasNonEmptyString(value.target)) {
+    return false;
   }
 
-  return hasNonEmptyString(value.target);
+  if (typeof value.tavernId !== "undefined" && !hasNonEmptyString(value.tavernId)) {
+    return false;
+  }
+
+  if (typeof value.channelId !== "undefined" && !hasNonEmptyString(value.channelId)) {
+    return false;
+  }
+
+  return true;
 };
 
 export const isAnswerMessage = (value: unknown): value is ClientAnswerMessage => {
@@ -150,7 +314,19 @@ export const isAnswerMessage = (value: unknown): value is ClientAnswerMessage =>
     return false;
   }
 
-  return hasNonEmptyString(value.sdp) && hasNonEmptyString(value.target);
+  if (!hasNonEmptyString(value.sdp) || !hasNonEmptyString(value.target)) {
+    return false;
+  }
+
+  if (typeof value.tavernId !== "undefined" && !hasNonEmptyString(value.tavernId)) {
+    return false;
+  }
+
+  if (typeof value.channelId !== "undefined" && !hasNonEmptyString(value.channelId)) {
+    return false;
+  }
+
+  return true;
 };
 
 export const isIceCandidateMessage = (value: unknown): value is ClientIceCandidateMessage => {
@@ -158,7 +334,19 @@ export const isIceCandidateMessage = (value: unknown): value is ClientIceCandida
     return false;
   }
 
-  return hasNonEmptyString(value.candidate) && hasNonEmptyString(value.target);
+  if (!hasNonEmptyString(value.candidate) || !hasNonEmptyString(value.target)) {
+    return false;
+  }
+
+  if (typeof value.tavernId !== "undefined" && !hasNonEmptyString(value.tavernId)) {
+    return false;
+  }
+
+  if (typeof value.channelId !== "undefined" && !hasNonEmptyString(value.channelId)) {
+    return false;
+  }
+
+  return true;
 };
 
 export const parseClientMessage = (raw: string): ClientMessage | null => {
@@ -171,6 +359,26 @@ export const parseClientMessage = (raw: string): ClientMessage | null => {
   }
 
   if (isJoinMessage(parsed)) {
+    return parsed;
+  }
+
+  if (isCreateTavernMessage(parsed)) {
+    return parsed;
+  }
+
+  if (isJoinChannelMessage(parsed)) {
+    return parsed;
+  }
+
+  if (isLeaveChannelMessage(parsed)) {
+    return parsed;
+  }
+
+  if (isGetTavernInfoMessage(parsed)) {
+    return parsed;
+  }
+
+  if (isCreateChannelMessage(parsed)) {
     return parsed;
   }
 

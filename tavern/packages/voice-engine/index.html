@@ -1,56 +1,154 @@
-<!-- Single-page browser client UI for Tavern WebRTC voice rooms. -->
 <!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Tavern Voice POC</title>
+    <title>Tavern Voice</title>
     <link rel="stylesheet" href="./style.css" />
+    <link id="theme-link" rel="stylesheet" href="./src/themes/dark.css" />
   </head>
   <body>
-    <main class="tavern-panel">
-      <h1 id="title" class="tavern-title">Tavern - Room: ...</h1>
-      <p id="status" class="tavern-status">Status: Connecting</p>
-      <p id="local-identity" class="tavern-status-bar">You: Unknown | Mic On | PTT: OFF</p>
+    <main class="tavern-layout">
+      <aside class="tavern-servers-panel">
+        <h2 class="tavern-section-title">Taverns</h2>
+        <ul id="tavern-list" class="tavern-server-list" aria-label="Saved taverns"></ul>
+      </aside>
 
-      <section class="tavern-identity-section" aria-label="Identity settings">
-        <label for="display-name-input" class="tavern-field-label">Display Name</label>
-        <div class="tavern-input-row">
-          <input
-            id="display-name-input"
-            class="tavern-input"
-            type="text"
-            maxlength="32"
-            placeholder="Enter display name"
-          />
-          <button id="display-name-set" type="button" class="tavern-button tavern-button-primary">
-            Set
+      <aside class="tavern-channels-panel">
+        <h2 class="tavern-section-title">Channels</h2>
+        <ul id="channel-list" class="tavern-channel-list" aria-label="Tavern channels"></ul>
+
+        <div class="tavern-form-card">
+          <p class="tavern-form-title">Create channel</p>
+          <input id="create-channel-name" class="tavern-input" type="text" placeholder="Channel name" />
+          <button id="create-channel-button" class="tavern-button tavern-button-secondary" type="button">
+            Create Channel
           </button>
         </div>
-        <div class="tavern-identity-actions">
-          <button id="export-identity" type="button" class="tavern-button tavern-button-secondary">
-            Export Identity
+
+        <button id="copy-invite-button" class="tavern-button tavern-button-secondary" type="button">
+          Copy Invite Link
+        </button>
+        <p id="invite-feedback" class="tavern-muted">Invite link not copied yet.</p>
+      </aside>
+
+      <section class="tavern-main-panel">
+        <header class="tavern-header-card">
+          <h1 class="tavern-title">Tavern Voice</h1>
+          <p id="status" class="tavern-status">Status: Connecting</p>
+          <p id="active-room" class="tavern-status">Connected to: none</p>
+          <p id="local-identity" class="tavern-status">You: unknown</p>
+          <p id="local-speaking" class="tavern-muted">Local speaking: no</p>
+        </header>
+
+        <section class="tavern-identity-card" aria-label="Identity settings">
+          <p class="tavern-form-title">Profile</p>
+          <div class="tavern-inline-row">
+            <input
+              id="display-name-input"
+              class="tavern-input"
+              type="text"
+              maxlength="32"
+              placeholder="Display name"
+            />
+            <button id="display-name-set" class="tavern-button tavern-button-primary" type="button">Set</button>
+          </div>
+        </section>
+
+        <section class="tavern-tavern-actions" aria-label="Create or join taverns">
+          <div class="tavern-form-card">
+            <p class="tavern-form-title">Create Tavern</p>
+            <input id="create-tavern-name" class="tavern-input" type="text" placeholder="Tavern name" />
+            <input id="create-tavern-icon" class="tavern-input" type="text" maxlength="2" placeholder="Icon" />
+            <button id="create-tavern-button" class="tavern-button tavern-button-primary" type="button">
+              Create Tavern
+            </button>
+          </div>
+
+          <div class="tavern-form-card">
+            <p class="tavern-form-title">Join Tavern</p>
+            <input id="join-invite-code" class="tavern-input" type="text" placeholder="Invite code or tavern id" />
+            <button id="join-tavern-button" class="tavern-button tavern-button-secondary" type="button">
+              Join Tavern
+            </button>
+          </div>
+        </section>
+
+        <section class="tavern-participants-card">
+          <h2 class="tavern-section-title">Participants</h2>
+          <ul id="participant-list" class="tavern-participant-list" aria-label="Connected participants"></ul>
+        </section>
+
+        <footer class="tavern-controls-card">
+          <p id="noise-status" class="state-on">Noise Suppression: ON</p>
+          <button id="noise-toggle" type="button" class="tavern-button">Noise Suppression: ON</button>
+          <p id="vad-status" class="state-on">Voice Detected</p>
+          <button id="vad-toggle" type="button" class="tavern-button state-on">VAD: ON</button>
+          <p id="ptt-status" class="state-off">PTT disabled</p>
+          <button id="ptt-toggle" type="button" class="tavern-button state-off">PTT: OFF</button>
+          <button id="mute-button" type="button" class="tavern-button tavern-button-primary">Mute</button>
+          <button id="settings-button" type="button" class="tavern-button tavern-button-secondary">
+            Settings
           </button>
-          <button id="import-identity" type="button" class="tavern-button tavern-button-secondary">
-            Import Identity
-          </button>
-          <input id="import-identity-file" type="file" accept=".tavern-key" hidden />
+        </footer>
+      </section>
+    </main>
+
+    <aside id="settings-panel" class="tavern-settings-panel" aria-label="Settings panel">
+      <div class="tavern-settings-header">
+        <h2 class="tavern-section-title">Settings</h2>
+        <button id="settings-close" class="tavern-button tavern-button-secondary" type="button">Close</button>
+      </div>
+
+      <section class="tavern-settings-section">
+        <h3 class="tavern-form-title">Audio</h3>
+        <label class="tavern-settings-label" for="input-device-select">Input Device</label>
+        <select id="input-device-select" class="tavern-input"></select>
+        <label class="tavern-settings-label" for="output-device-select">Output Device</label>
+        <select id="output-device-select" class="tavern-input"></select>
+      </section>
+
+      <section class="tavern-settings-section">
+        <h3 class="tavern-form-title">Appearance</h3>
+        <label class="tavern-settings-label" for="theme-select">Theme</label>
+        <select id="theme-select" class="tavern-input">
+          <option value="dark">Dark</option>
+          <option value="light">Light</option>
+          <option value="retro">Retro</option>
+        </select>
+        <label class="tavern-settings-label" for="skin-select">Community Skin</label>
+        <select id="skin-select" class="tavern-input"></select>
+        <input id="skin-upload" class="tavern-input" type="file" accept=".tavern-skin,.css" />
+        <button id="skin-reset" class="tavern-button tavern-button-secondary" type="button">Reset Skin</button>
+      </section>
+
+      <section class="tavern-settings-section">
+        <h3 class="tavern-form-title">Identity & Recovery</h3>
+        <button id="export-identity" class="tavern-button tavern-button-secondary" type="button">
+          Export Backup Key
+        </button>
+        <button id="import-identity" class="tavern-button tavern-button-secondary" type="button">Import Key</button>
+        <input id="import-identity-file" type="file" accept=".tavern-key" hidden />
+      </section>
+
+      <section class="tavern-settings-section">
+        <h3 class="tavern-form-title">Keybinds</h3>
+        <label class="tavern-settings-label" for="ptt-key-input">Push To Talk Key</label>
+        <div class="tavern-inline-row">
+          <input id="ptt-key-input" class="tavern-input" type="text" />
+          <button id="ptt-key-set" class="tavern-button tavern-button-secondary" type="button">Apply</button>
         </div>
       </section>
 
-      <p id="local-speaking" class="tavern-muted">You: silent</p>
-      <p id="noise-status" class="state-on">Noise Suppression: ON</p>
-      <button id="noise-toggle" type="button" class="tavern-button">Noise Suppression: ON</button>
-      <p id="vad-status" class="state-on">Voice Detected</p>
-      <button id="vad-toggle" type="button" class="tavern-button state-on">VAD: ON</button>
-      <p id="ptt-status" class="state-off">PTT disabled</p>
-      <button id="ptt-toggle" type="button" class="tavern-button state-off">PTT: OFF</button>
+      <section class="tavern-settings-section">
+        <h3 class="tavern-form-title">Notifications</h3>
+        <label class="tavern-settings-toggle">
+          <input id="notifications-toggle" type="checkbox" />
+          <span>Enable notifications</span>
+        </label>
+      </section>
+    </aside>
 
-      <h2 class="tavern-subtitle">Peers</h2>
-      <ul id="peer-list" class="tavern-peer-list" aria-label="Connected peers"></ul>
-
-      <button id="mute-button" type="button" class="tavern-button tavern-button-primary">Mute</button>
-    </main>
     <script type="module" src="./bundle.js"></script>
   </body>
 </html>

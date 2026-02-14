@@ -1,18 +1,25 @@
 // WebSocket signaling server entry point for room-based WebRTC coordination.
 
-import { WebSocketServer } from "ws";
 import { randomUUID } from "node:crypto";
+import type WebSocket from "ws";
+import { WebSocketServer } from "ws";
 
+import { TavernRooms } from "./rooms.js";
 import { RoomManager } from "./room-manager.js";
 import {
   parseClientMessage,
+  type ServerChannelCreatedMessage,
+  type ServerChannelJoinedMessage,
   type ServerErrorMessage,
   type ServerPeerIdentityUpdatedMessage,
+  type ServerPeerJoinedChannelMessage,
   type ServerPeerJoinedMessage,
-  type ServerPeerListMessage,
+  type ServerPeerLeftChannelMessage,
   type ServerPeerLeftMessage,
-  type PeerIdentity,
-  type ServerRelayMessage
+  type ServerPeerListMessage,
+  type ServerRelayMessage,
+  type ServerTavernCreatedMessage,
+  type ServerTavernInfoMessage
 } from "./types.js";
 
 const DEFAULT_PORT = 8080;
@@ -23,9 +30,10 @@ const parsedPort = rawPort ? Number.parseInt(rawPort, 10) : Number.NaN;
 const port = Number.isFinite(parsedPort) ? parsedPort : DEFAULT_PORT;
 
 const roomManager = new RoomManager(MAX_PEERS_PER_ROOM);
-const peerIdentityById = new Map<string, PeerIdentity>();
+const tavernRooms = new TavernRooms(MAX_PEERS_PER_ROOM);
 
 const server = new WebSocketServer({ port, host: "0.0.0.0" });
+const peerSockets = new Map<string, WebSocket>();
 
 const writeLog = (event: string, data: Record<string, unknown>): void => {
   process.stdout.write(
@@ -42,8 +50,30 @@ const sendError = (socket: { send: (payload: string) => void }, message: string)
   sendJson(socket, errorMessage);
 };
 
+const sendToPeerId = (peerId: string, payload: unknown): boolean => {
+  const socket = peerSockets.get(peerId);
+
+  if (!socket || socket.readyState !== 1) {
+    return false;
+  }
+
+  sendJson(socket, payload);
+  return true;
+};
+
+const broadcastChannel = (tavernId: string, channelId: string, payload: unknown, exceptPeerId?: string): void => {
+  for (const targetPeerId of tavernRooms.listPeerIdsInChannel(tavernId, channelId)) {
+    if (exceptPeerId && targetPeerId === exceptPeerId) {
+      continue;
+    }
+
+    sendToPeerId(targetPeerId, payload);
+  }
+};
+
 server.on("connection", (socket, request) => {
   const peerId = randomUUID();
+  peerSockets.set(peerId, socket);
 
   writeLog("peer.connected", {
     peerId,
@@ -59,6 +89,114 @@ server.on("connection", (socket, request) => {
       return;
     }
 
+    if (message.type === "create-tavern") {
+      const created = tavernRooms.createTavern(
+        message.name.trim(),
+        typeof message.icon === "string" && message.icon.trim().length > 0 ? message.icon.trim() : undefined,
+        "unknown"
+      );
+
+      const response: ServerTavernCreatedMessage = { type: "tavern-created", tavern: created };
+      sendJson(socket, response);
+      return;
+    }
+
+    if (message.type === "get-tavern-info") {
+      const tavern = tavernRooms.getTavernInfo(message.tavernId);
+      if (!tavern) {
+        sendError(socket, "Tavern not found");
+        return;
+      }
+
+      const response: ServerTavernInfoMessage = { type: "tavern-info", tavern };
+      sendJson(socket, response);
+      return;
+    }
+
+    if (message.type === "create-channel") {
+      const channel = tavernRooms.createChannel(message.tavernId, message.name.trim());
+      if (!channel) {
+        sendError(socket, "Tavern not found");
+        return;
+      }
+
+      const response: ServerChannelCreatedMessage = {
+        type: "channel-created",
+        tavernId: message.tavernId,
+        channel
+      };
+      sendJson(socket, response);
+      return;
+    }
+
+    if (message.type === "join-channel") {
+      const joinResult = tavernRooms.joinChannel(
+        peerId,
+        message.tavernId,
+        message.channelId,
+        message.identity
+      );
+
+      if (!joinResult.ok) {
+        if (joinResult.reason === "channel-full") {
+          sendError(socket, "Channel full");
+          return;
+        }
+
+        sendError(socket, joinResult.reason === "tavern-not-found" ? "Tavern not found" : "Channel not found");
+        return;
+      }
+
+      if (joinResult.previousLocation) {
+        const leaveMessage: ServerPeerLeftChannelMessage = {
+          type: "peer-left-channel",
+          tavernId: joinResult.previousLocation.tavernId,
+          channelId: joinResult.previousLocation.channelId,
+          publicKeyHex: joinResult.joinedPeer.publicKeyHex
+        };
+        broadcastChannel(
+          joinResult.previousLocation.tavernId,
+          joinResult.previousLocation.channelId,
+          leaveMessage,
+          peerId
+        );
+      }
+
+      const joinedMessage: ServerChannelJoinedMessage = {
+        type: "channel-joined",
+        tavernId: message.tavernId,
+        channelId: message.channelId,
+        peers: joinResult.existingPeers
+      };
+      sendJson(socket, joinedMessage);
+
+      const peerJoinedMessage: ServerPeerJoinedChannelMessage = {
+        type: "peer-joined-channel",
+        tavernId: message.tavernId,
+        channelId: message.channelId,
+        peer: joinResult.joinedPeer
+      };
+      broadcastChannel(message.tavernId, message.channelId, peerJoinedMessage, peerId);
+      return;
+    }
+
+    if (message.type === "leave-channel") {
+      const peer = tavernRooms.leaveChannel(peerId, message.tavernId, message.channelId);
+      if (!peer) {
+        return;
+      }
+
+      const leaveMessage: ServerPeerLeftChannelMessage = {
+        type: "peer-left-channel",
+        tavernId: message.tavernId,
+        channelId: message.channelId,
+        publicKeyHex: peer.publicKeyHex
+      };
+      broadcastChannel(message.tavernId, message.channelId, leaveMessage, peerId);
+      return;
+    }
+
+    // Backward-compatible legacy room signaling flow.
     if (message.type === "join") {
       const roomId = message.room.trim();
       const joinResult = roomManager.joinRoom(roomId, peerId, socket);
@@ -67,19 +205,7 @@ server.on("connection", (socket, request) => {
         if (joinResult.reason === "room-full") {
           sendError(socket, "Room full");
         }
-
-        writeLog("room.join.rejected", {
-          peerId,
-          roomId,
-          reason: joinResult.reason
-        });
         return;
-      }
-
-      if (message.identity) {
-        peerIdentityById.set(peerId, message.identity);
-      } else {
-        peerIdentityById.delete(peerId);
       }
 
       const peerListMessage: ServerPeerListMessage = {
@@ -87,112 +213,125 @@ server.on("connection", (socket, request) => {
         peers: roomManager
           .listPeerIds(roomId)
           .filter((id) => id !== peerId)
-          .map((id) => ({
-            peerId: id,
-            identity: peerIdentityById.get(id)
-          }))
+          .map((id) => ({ peerId: id }))
       };
-
       sendJson(socket, peerListMessage);
 
       const joinedMessage: ServerPeerJoinedMessage = {
         type: "peer-joined",
         peerId,
-        identity: peerIdentityById.get(peerId)
+        identity: message.identity
       };
-
       roomManager.broadcastToRoom(roomId, JSON.stringify(joinedMessage), peerId);
-
-      writeLog("room.joined", {
-        peerId,
-        roomId
-      });
-      return;
-    }
-
-    const roomId = roomManager.getRoomForPeer(peerId);
-    if (!roomId) {
-      sendError(socket, "Join a room before signaling");
-      writeLog("message.rejected", { peerId, reason: "not-in-room", type: message.type });
       return;
     }
 
     if (message.type === "update-identity") {
-      peerIdentityById.set(peerId, message.identity);
+      const location = tavernRooms.getPeerLocation(peerId);
 
-      const updatedMessage: ServerPeerIdentityUpdatedMessage = {
+      if (location) {
+        const updatedPeer = tavernRooms.updatePeerIdentity(peerId, message.identity);
+        if (!updatedPeer) {
+          return;
+        }
+
+        const updatedMessage: ServerPeerIdentityUpdatedMessage = {
+          type: "peer-identity-updated",
+          peerId,
+          identity: message.identity
+        };
+        broadcastChannel(location.tavernId, location.channelId, updatedMessage, peerId);
+        return;
+      }
+
+      const roomId = roomManager.getRoomForPeer(peerId);
+      if (!roomId) {
+        return;
+      }
+
+      const legacyUpdatedMessage: ServerPeerIdentityUpdatedMessage = {
         type: "peer-identity-updated",
         peerId,
         identity: message.identity
       };
 
-      roomManager.broadcastToRoom(roomId, JSON.stringify(updatedMessage), peerId);
+      roomManager.broadcastToRoom(roomId, JSON.stringify(legacyUpdatedMessage), peerId);
       return;
     }
 
-    if (message.type === "offer") {
+    if (message.type === "offer" || message.type === "answer" || message.type === "ice-candidate") {
+      const sourcePeer = tavernRooms.getPeerInfo(peerId);
       const relayMessage: ServerRelayMessage = {
-        type: "offer",
-        from: peerId,
-        identity: peerIdentityById.get(peerId),
-        sdp: message.sdp
+        type: message.type,
+        from: sourcePeer?.publicKeyHex ?? peerId,
+        tavernId: message.tavernId,
+        channelId: message.channelId,
+        sdp: "sdp" in message ? message.sdp : undefined,
+        candidate: "candidate" in message ? message.candidate : undefined
       };
+
+      if (message.tavernId && message.channelId) {
+        if (message.target) {
+          const targetPeerId = tavernRooms.resolvePeerIdByPublicKey(
+            message.tavernId,
+            message.channelId,
+            message.target
+          );
+
+          if (!targetPeerId) {
+            sendError(socket, "Target peer not found in channel");
+            return;
+          }
+
+          sendToPeerId(targetPeerId, relayMessage);
+        } else {
+          broadcastChannel(message.tavernId, message.channelId, relayMessage, peerId);
+        }
+        return;
+      }
+
+      const roomId = roomManager.getRoomForPeer(peerId);
+      if (!roomId) {
+        sendError(socket, "Join a room before signaling");
+        return;
+      }
 
       if (message.target) {
         roomManager.sendToPeer(roomId, message.target, JSON.stringify(relayMessage));
       } else {
         roomManager.broadcastToRoom(roomId, JSON.stringify(relayMessage), peerId);
       }
-      return;
     }
-
-    if (message.type === "answer") {
-      const relayMessage: ServerRelayMessage = {
-        type: "answer",
-        from: peerId,
-        identity: peerIdentityById.get(peerId),
-        sdp: message.sdp
-      };
-
-      roomManager.sendToPeer(roomId, message.target, JSON.stringify(relayMessage));
-      return;
-    }
-
-    const relayMessage: ServerRelayMessage = {
-      type: "ice-candidate",
-      from: peerId,
-      identity: peerIdentityById.get(peerId),
-      candidate: message.candidate
-    };
-
-    roomManager.sendToPeer(roomId, message.target, JSON.stringify(relayMessage));
   });
 
   socket.on("close", () => {
-    const identity = peerIdentityById.get(peerId);
-    peerIdentityById.delete(peerId);
+    const current = tavernRooms.leaveCurrentChannel(peerId);
+
+    if (current) {
+      const leaveMessage: ServerPeerLeftChannelMessage = {
+        type: "peer-left-channel",
+        tavernId: current.location.tavernId,
+        channelId: current.location.channelId,
+        publicKeyHex: current.peer.publicKeyHex
+      };
+      broadcastChannel(current.location.tavernId, current.location.channelId, leaveMessage, peerId);
+    }
 
     const leaveResult = roomManager.leaveRoom(peerId);
-
     if (leaveResult) {
       const peerLeftMessage: ServerPeerLeftMessage = {
         type: "peer-left",
-        peerId,
-        identity
+        peerId
       };
 
       roomManager.broadcastToRoom(leaveResult.roomId, JSON.stringify(peerLeftMessage), peerId);
-
-      writeLog("peer.disconnected", {
-        peerId,
-        roomId: leaveResult.roomId
-      });
-      return;
     }
+
+    peerSockets.delete(peerId);
 
     writeLog("peer.disconnected", {
       peerId,
-      roomId: null
+      roomId: leaveResult?.roomId ?? null
     });
   });
 
