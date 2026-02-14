@@ -115,6 +115,10 @@ export class SqliteStore implements TavernStore {
   public async deleteChannel(tavernId: string, channelId: string): Promise<void> {
     this.db.prepare("DELETE FROM channels WHERE id = ? AND tavern_id = ?").run(channelId, tavernId);
   }
+
+  public close(): void {
+    this.db.close();
+  }
 }
 
 // Raw row shapes returned by better-sqlite3 (snake_case column names).

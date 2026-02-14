@@ -1,0 +1,68 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: tavern/package-lock.json
+
+      - name: Install dependencies
+        working-directory: tavern
+        run: npm ci
+
+      - name: Run unit tests
+        working-directory: tavern
+        run: npm run test:unit
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: tavern/package-lock.json
+
+      - name: Install dependencies
+        working-directory: tavern
+        run: npm ci
+
+      - name: Run integration tests
+        working-directory: tavern
+        run: npm run test:integration
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: tavern/package-lock.json
+
+      - name: Install dependencies
+        working-directory: tavern
+        run: npm ci
+
+      - name: Lint (if script exists)
+        working-directory: tavern
+        run: npm run lint --if-present

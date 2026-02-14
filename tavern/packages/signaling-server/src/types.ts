@@ -185,6 +185,14 @@ export type ServerErrorMessage = {
   message: string;
 };
 
+export type ServerSessionReplacedMessage = {
+  type: "session-replaced";
+};
+
+export type ServerShutdownMessage = {
+  type: "server-shutdown";
+};
+
 type UnknownRecord = Record<string, unknown>;
 
 const isObject = (value: unknown): value is UnknownRecord => {

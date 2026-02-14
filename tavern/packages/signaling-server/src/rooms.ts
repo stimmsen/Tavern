@@ -77,6 +77,20 @@ export class TavernRooms {
     return this.taverns.size;
   }
 
+  /** Number of taverns that have at least one connected peer in any channel. */
+  public activeTavernCount(): number {
+    let count = 0;
+    for (const [, tavern] of this.taverns) {
+      for (const [, channel] of tavern.channels) {
+        if (channel.peersByPeerId.size > 0) {
+          count++;
+          break;
+        }
+      }
+    }
+    return count;
+  }
+
   public async createTavern(name: string, icon: string | undefined, createdBy: string): Promise<Tavern> {
     const tavernId = randomUUID();
     const channelId = randomUUID();

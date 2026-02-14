@@ -4,6 +4,7 @@ import { createServer } from "node:http";
 import { randomUUID } from "node:crypto";
 import type WebSocket from "ws";
 import { WebSocketServer } from "ws";
+import pino from "pino";
 
 import { TavernRooms } from "./rooms.js";
 import { RoomManager } from "./room-manager.js";
@@ -19,6 +20,8 @@ import {
   type ServerPeerLeftMessage,
   type ServerPeerListMessage,
   type ServerRelayMessage,
+  type ServerSessionReplacedMessage,
+  type ServerShutdownMessage,
   type ServerTavernCreatedMessage,
   type ServerTavernInfoMessage
 } from "./types.js";
@@ -27,8 +30,21 @@ import { MemoryStore } from "./memory-store.js";
 import { SqliteStore } from "./sqlite-store.js";
 import type { TavernStore } from "./store.js";
 
+// ── Pino logger ──
+const logLevel = process.env.TAVERN_LOG_LEVEL ?? "info";
+const logger = pino({ level: logLevel });
+
 const DEFAULT_PORT = 3001;
 const MAX_PEERS_PER_ROOM = 8;
+
+// ── Heartbeat configuration (configurable via env for testing) ──
+const HEARTBEAT_INTERVAL_MS = Number(process.env.TAVERN_HEARTBEAT_INTERVAL ?? 10_000);
+const HEARTBEAT_TIMEOUT_MS  = Number(process.env.TAVERN_HEARTBEAT_TIMEOUT  ?? 5_000);
+
+// ── Rate-limit configuration ──
+const RATE_CREATE_TAVERN_PER_MIN = Number(process.env.TAVERN_RATE_CREATE ?? 10);
+const RATE_MESSAGES_PER_SEC      = Number(process.env.TAVERN_RATE_MSG_SEC ?? 30);
+const RATE_VIOLATION_LIMIT       = 3;
 
 const rawPort = process.env.PORT;
 const parsedPort = rawPort ? Number.parseInt(rawPort, 10) : Number.NaN;
@@ -50,10 +66,35 @@ if (storeBackend === "memory") {
 const tavernRooms = new TavernRooms(MAX_PEERS_PER_ROOM, store);
 await tavernRooms.init();
 
-// HTTP server for health check + WebSocket upgrade.
+// ── Per-connection state tracking ──
+interface PeerState {
+  isAlive: boolean;
+  publicKeyHex: string | null;       // set on first join-channel
+  ip: string;
+  msgTimestamps: number[];            // rolling window for msgs/sec
+  createTavernTimestamps: number[];   // rolling window for create-tavern/min
+  violations: number;
+}
+
+const peerState = new Map<string, PeerState>();
+
+// Map publicKeyHex → peerId for duplicate connection detection
+const identityToPeerId = new Map<string, string>();
+
+// Per-IP state for rate limiting create-tavern
+const ipCreateTavernTimestamps = new Map<string, number[]>();
+
+// HTTP server for health check, metrics, + WebSocket upgrade.
 const httpServer = createServer((req, res) => {
   if (req.method === "GET" && req.url === "/health") {
     const body = JSON.stringify({ status: "ok", taverns: tavernRooms.tavernCount() });
+    res.writeHead(200, { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) });
+    res.end(body);
+    return;
+  }
+
+  if (req.method === "GET" && req.url === "/metrics") {
+    const body = JSON.stringify(getMetrics());
     res.writeHead(200, { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) });
     res.end(body);
     return;
@@ -66,11 +107,29 @@ const httpServer = createServer((req, res) => {
 const wss = new WebSocketServer({ noServer: true });
 const peerSockets = new Map<string, WebSocket>();
 
-const writeLog = (event: string, data: Record<string, unknown>): void => {
-  process.stdout.write(
-    `${JSON.stringify({ timestamp: new Date().toISOString(), event, ...data })}\n`
-  );
+// ── Metrics tracking ──
+const serverStartTime = Date.now();
+const messageTimestamps: number[] = []; // rolling 60s window for msgs/sec
+
+const recordMessage = (): void => {
+  const now = Date.now();
+  messageTimestamps.push(now);
+  // Trim older than 60s
+  const cutoff = now - 60_000;
+  while (messageTimestamps.length > 0 && messageTimestamps[0] < cutoff) {
+    messageTimestamps.shift();
+  }
 };
+
+const getMetrics = () => ({
+  connectedPeers: peerSockets.size,
+  activeTaverns: tavernRooms.activeTavernCount(),
+  totalTaverns: tavernRooms.tavernCount(),
+  uptime: Math.floor((Date.now() - serverStartTime) / 1_000),
+  messagesPerSecond: messageTimestamps.length > 0
+    ? +(messageTimestamps.length / 60).toFixed(2)
+    : 0
+});
 
 const sendJson = (socket: { send: (payload: string) => void }, payload: unknown): void => {
   socket.send(JSON.stringify(payload));
@@ -102,6 +161,91 @@ const broadcastChannel = (tavernId: string, channelId: string, payload: unknown,
   }
 };
 
+// ── Rate-limit helpers ──
+const checkMessageRate = (state: PeerState): boolean => {
+  const now = Date.now();
+  state.msgTimestamps.push(now);
+  // Keep only last 1 second
+  const cutoff = now - 1_000;
+  while (state.msgTimestamps.length > 0 && state.msgTimestamps[0] < cutoff) {
+    state.msgTimestamps.shift();
+  }
+  return state.msgTimestamps.length <= RATE_MESSAGES_PER_SEC;
+};
+
+const checkCreateTavernRate = (ip: string): boolean => {
+  const now = Date.now();
+  let timestamps = ipCreateTavernTimestamps.get(ip);
+  if (!timestamps) {
+    timestamps = [];
+    ipCreateTavernTimestamps.set(ip, timestamps);
+  }
+  timestamps.push(now);
+  // Keep only last 60 seconds
+  const cutoff = now - 60_000;
+  while (timestamps.length > 0 && timestamps[0] < cutoff) {
+    timestamps.shift();
+  }
+  return timestamps.length <= RATE_CREATE_TAVERN_PER_MIN;
+};
+
+// ── Heartbeat ──
+const heartbeatInterval = setInterval(() => {
+  for (const [peerId, ws] of peerSockets) {
+    const state = peerState.get(peerId);
+    if (!state) continue;
+
+    if (!state.isAlive) {
+      // No pong received since last check — terminate
+      logger.warn({ event: "peer.heartbeat-timeout", peerId });
+      ws.terminate();
+      continue;
+    }
+
+    state.isAlive = false;
+    ws.ping();
+  }
+}, HEARTBEAT_INTERVAL_MS);
+
+// ── Graceful shutdown ──
+let isShuttingDown = false;
+
+const gracefulShutdown = async (): Promise<void> => {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+
+  logger.info({ event: "server.shutting-down" });
+
+  // Broadcast server-shutdown to all connected clients
+  const shutdownMessage: ServerShutdownMessage = { type: "server-shutdown" };
+  for (const [, ws] of peerSockets) {
+    try {
+      sendJson(ws, shutdownMessage);
+      ws.close(1001, "Server shutting down");
+    } catch { /* ignore errors during shutdown */ }
+  }
+
+  // Stop heartbeat
+  clearInterval(heartbeatInterval);
+
+  // Close WebSocket server
+  wss.close();
+
+  // Close HTTP server
+  await new Promise<void>((resolve) => httpServer.close(() => resolve()));
+
+  // Flush SQLite if applicable
+  if (store instanceof SqliteStore) {
+    try { store.close(); } catch { /* ignore */ }
+  }
+
+  logger.info({ event: "server.stopped" });
+  process.exit(0);
+};
+
+process.on("SIGTERM", gracefulShutdown);
+process.on("SIGINT", gracefulShutdown);
+
 httpServer.on("upgrade", (request, socket, head) => {
   wss.handleUpgrade(request, socket, head, (ws) => {
     wss.emit("connection", ws, request);
@@ -109,24 +253,72 @@ httpServer.on("upgrade", (request, socket, head) => {
 });
 
 wss.on("connection", (socket, request) => {
-  const peerId = randomUUID();
-  peerSockets.set(peerId, socket);
+  if (isShuttingDown) {
+    socket.close(1001, "Server shutting down");
+    return;
+  }
 
-  writeLog("peer.connected", {
-    peerId,
-    remoteAddress: request.socket.remoteAddress ?? null
+  const peerId = randomUUID();
+  const remoteIp = request.socket.remoteAddress ?? "unknown";
+  peerSockets.set(peerId, socket);
+  peerState.set(peerId, {
+    isAlive: true,
+    publicKeyHex: null,
+    ip: remoteIp,
+    msgTimestamps: [],
+    createTavernTimestamps: [],
+    violations: 0
+  });
+
+  logger.info({ event: "peer.connected", peerId, remoteAddress: remoteIp });
+
+  // Heartbeat pong handler
+  socket.on("pong", () => {
+    const state = peerState.get(peerId);
+    if (state) state.isAlive = true;
   });
 
   socket.on("message", async (rawPayload) => {
+    const state = peerState.get(peerId);
+    if (!state) return;
+
+    // ── Per-message rate limit ──
+    if (!checkMessageRate(state)) {
+      state.violations++;
+      logger.warn({ event: "rate-limit.messages", peerId, violations: state.violations });
+      sendError(socket, "rate-limited");
+      if (state.violations >= RATE_VIOLATION_LIMIT) {
+        logger.warn({ event: "rate-limit.disconnect", peerId, reason: "too-many-violations" });
+        socket.close(1008, "Rate limited");
+        return;
+      }
+      return;
+    }
+
     const payloadText = typeof rawPayload === "string" ? rawPayload : rawPayload.toString("utf8");
     const message = parseClientMessage(payloadText);
 
     if (!message) {
-      writeLog("message.ignored", { peerId, reason: "malformed" });
+      logger.debug({ event: "message.ignored", peerId, reason: "malformed" });
       return;
     }
 
+    // Track for /metrics
+    recordMessage();
+
     if (message.type === "create-tavern") {
+      // ── Per-IP create-tavern rate limit ──
+      const state = peerState.get(peerId);
+      if (state && !checkCreateTavernRate(state.ip)) {
+        state.violations++;
+        logger.warn({ event: "rate-limit.create-tavern", peerId, ip: state.ip, violations: state.violations });
+        sendError(socket, "rate-limited");
+        if (state.violations >= RATE_VIOLATION_LIMIT) {
+          socket.close(1008, "Rate limited");
+        }
+        return;
+      }
+
       const created = await tavernRooms.createTavern(
         message.name.trim(),
         typeof message.icon === "string" && message.icon.trim().length > 0 ? message.icon.trim() : undefined,
@@ -167,6 +359,25 @@ wss.on("connection", (socket, request) => {
     }
 
     if (message.type === "join-channel") {
+      // ── Duplicate connection guard ──
+      const joiningPublicKey = message.identity.publicKeyHex;
+      const existingPeerId = identityToPeerId.get(joiningPublicKey);
+      if (existingPeerId && existingPeerId !== peerId) {
+        const existingSocket = peerSockets.get(existingPeerId);
+        if (existingSocket && existingSocket.readyState === 1) {
+          const replacedMsg: ServerSessionReplacedMessage = { type: "session-replaced" };
+          sendJson(existingSocket, replacedMsg);
+          logger.info({ event: "peer.session-replaced", oldPeerId: existingPeerId, newPeerId: peerId, publicKeyHex: joiningPublicKey });
+          existingSocket.close(1000, "Session replaced");
+        }
+        identityToPeerId.delete(joiningPublicKey);
+      }
+      identityToPeerId.set(joiningPublicKey, peerId);
+
+      // Track identity on peer state
+      const currentState = peerState.get(peerId);
+      if (currentState) currentState.publicKeyHex = joiningPublicKey;
+
       const joinResult = tavernRooms.joinChannel(
         peerId,
         message.tavernId,
@@ -364,22 +575,27 @@ wss.on("connection", (socket, request) => {
       roomManager.broadcastToRoom(leaveResult.roomId, JSON.stringify(peerLeftMessage), peerId);
     }
 
-    peerSockets.delete(peerId);
+    // Clean up identity tracking
+    const state = peerState.get(peerId);
+    if (state?.publicKeyHex) {
+      const currentMapping = identityToPeerId.get(state.publicKeyHex);
+      // Only delete if it still points to this peerId (not already replaced)
+      if (currentMapping === peerId) {
+        identityToPeerId.delete(state.publicKeyHex);
+      }
+    }
 
-    writeLog("peer.disconnected", {
-      peerId,
-      roomId: leaveResult?.roomId ?? null
-    });
+    peerSockets.delete(peerId);
+    peerState.delete(peerId);
+
+    logger.info({ event: "peer.disconnected", peerId, roomId: leaveResult?.roomId ?? null });
   });
 
   socket.on("error", (error) => {
-    writeLog("peer.error", {
-      peerId,
-      message: error.message
-    });
+    logger.error({ event: "peer.error", peerId, message: error.message });
   });
 });
 
 httpServer.listen(port, "0.0.0.0", () => {
-  writeLog("server.started", { port, store: storeBackend, taverns: tavernRooms.tavernCount() });
+  logger.info({ event: "server.started", port, store: storeBackend, logLevel, taverns: tavernRooms.tavernCount() });
 });

@@ -16,6 +16,7 @@
     <img src="https://img.shields.io/badge/license-AGPLv3-blue" alt="License">
     <img src="https://img.shields.io/badge/status-alpha-orange" alt="Status">
     <img src="https://img.shields.io/badge/voice-P2P%20%7C%20E2EE-green" alt="Voice">
+    <a href="https://github.com/stimmsen/Tavern/actions/workflows/test.yml"><img src="https://github.com/stimmsen/Tavern/actions/workflows/test.yml/badge.svg" alt="Tests"></a>
   </p>
 </p>
 

@@ -1,0 +1,24 @@
+{
+  "name": "tavern",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/signaling-server",
+    "packages/crypto",
+    "packages/shared",
+    "packages/voice-engine"
+  ],
+  "scripts": {
+    "test": "vitest run",
+    "test:unit": "vitest run --project unit",
+    "test:integration": "vitest run --project integration",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.21.0",
+    "vitest": "^3.0.5",
+    "ws": "^8.19.0"
+  }
+}
