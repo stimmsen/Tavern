@@ -2,15 +2,58 @@ import { randomUUID } from "node:crypto";
 const DEFAULT_CHANNEL_NAME = "General";
 export class TavernRooms {
     maxPeersPerChannel;
+    store;
     taverns = new Map();
     peerLocations = new Map();
-    constructor(maxPeersPerChannel) {
+    constructor(maxPeersPerChannel, store) {
         this.maxPeersPerChannel = maxPeersPerChannel;
+        this.store = store;
     }
-    createTavern(name, icon, createdBy) {
+    async init() {
+        const records = await this.store.listTaverns();
+        for (const record of records) {
+            const channelRecords = await this.store.getChannels(record.id);
+            const channelMap = new Map();
+            for (const ch of channelRecords) {
+                channelMap.set(ch.id, {
+                    id: ch.id,
+                    name: ch.name,
+                    peersByPeerId: new Map()
+                });
+            }
+            this.taverns.set(record.id, {
+                id: record.id,
+                name: record.name,
+                icon: record.icon || undefined,
+                createdBy: record.creatorPublicKey,
+                createdAt: record.createdAt,
+                channels: channelMap
+            });
+        }
+    }
+    tavernCount() {
+        return this.taverns.size;
+    }
+    async createTavern(name, icon, createdBy) {
         const tavernId = randomUUID();
         const channelId = randomUUID();
         const createdAt = new Date().toISOString();
+        const tavernRecord = {
+            id: tavernId,
+            name,
+            icon: icon ?? "",
+            creatorPublicKey: createdBy,
+            createdAt,
+            signalingUrl: ""
+        };
+        const channelRecord = {
+            id: channelId,
+            tavernId,
+            name: DEFAULT_CHANNEL_NAME,
+            createdAt
+        };
+        await this.store.createTavern(tavernRecord);
+        await this.store.createChannel(tavernId, channelRecord);
         const defaultChannel = {
             id: channelId,
             name: DEFAULT_CHANNEL_NAME,
@@ -34,12 +77,20 @@ export class TavernRooms {
         }
         return this.toTavern(tavern);
     }
-    createChannel(tavernId, name) {
+    async createChannel(tavernId, name) {
         const tavern = this.taverns.get(tavernId);
         if (!tavern) {
             return null;
         }
         const channelId = randomUUID();
+        const createdAt = new Date().toISOString();
+        const channelRecord = {
+            id: channelId,
+            tavernId,
+            name,
+            createdAt
+        };
+        await this.store.createChannel(tavernId, channelRecord);
         const channel = {
             id: channelId,
             name,

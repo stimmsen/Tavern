@@ -1,0 +1,61 @@
+# Tavern Self-Hosting Stack
+# Usage: docker-compose up -d
+# Docs:  ../docs/self-hosting.md
+
+services:
+  # ── Signaling Server ──────────────────────────────────────────────
+  # WebSocket signaling for WebRTC peer coordination + Tavern state.
+  signaling:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.signaling
+    ports:
+      - "${TAVERN_PORT:-3001}:3001"
+    volumes:
+      - tavern-data:/data
+    environment:
+      # Persistence backend: memory | sqlite (default: sqlite)
+      TAVERN_STORE: "${TAVERN_STORE:-sqlite}"
+      # SQLite database file path inside the container
+      TAVERN_DB_PATH: "${TAVERN_DB_PATH:-/data/tavern.db}"
+      # Server port (internal — mapped via ports above)
+      PORT: "3001"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 5s
+      retries: 3
+
+  # ── TURN Relay Server ─────────────────────────────────────────────
+  # coturn provides TURN/STUN relay for peers behind restrictive NATs.
+  coturn:
+    image: coturn/coturn:latest
+    ports:
+      - "3478:3478/udp"
+      - "3478:3478/tcp"
+      - "49152-49252:49152-49252/udp"
+    environment:
+      # Shared secret for TURN authentication (change in production!)
+      TAVERN_TURN_SECRET: "${TAVERN_TURN_SECRET:-tavern-dev-secret}"
+      # Domain / realm for TURN (use your actual domain in production)
+      TAVERN_DOMAIN: "${TAVERN_DOMAIN:-localhost}"
+    command:
+      - "--realm=${TAVERN_DOMAIN:-localhost}"
+      - "--use-auth-secret"
+      - "--static-auth-secret=${TAVERN_TURN_SECRET:-tavern-dev-secret}"
+      - "--listening-port=3478"
+      - "--min-port=49152"
+      - "--max-port=49252"
+      - "--fingerprint"
+      - "--lt-cred-mech"
+      - "--no-cli"
+      - "--no-tls"
+      - "--no-dtls"
+      - "--log-file=stdout"
+    restart: unless-stopped
+
+volumes:
+  tavern-data:
+    driver: local

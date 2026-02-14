@@ -1,0 +1,38 @@
+# ---- Build stage ----
+FROM node:20-alpine AS build
+WORKDIR /app
+
+# Install dependencies first (better layer caching)
+COPY packages/signaling-server/package.json packages/signaling-server/package-lock.json* ./
+RUN npm install
+
+# Copy source and compile TypeScript
+COPY packages/signaling-server/tsconfig.json ./
+COPY packages/signaling-server/src/ ./src/
+RUN npx tsc -p tsconfig.json
+
+# ---- Production stage ----
+FROM node:20-alpine
+WORKDIR /app
+
+# Install only production dependencies
+COPY packages/signaling-server/package.json packages/signaling-server/package-lock.json* ./
+RUN npm install --omit=dev && npm cache clean --force
+
+# Copy compiled output from build stage
+COPY --from=build /app/dist/ ./dist/
+
+# SQLite data volume
+VOLUME /data
+
+# Environment defaults
+ENV TAVERN_STORE=sqlite
+ENV TAVERN_DB_PATH=/data/tavern.db
+ENV PORT=3001
+
+EXPOSE 3001
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+  CMD wget -qO- http://localhost:3001/health || exit 1
+
+CMD ["node", "dist/index.js"]

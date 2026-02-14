@@ -1,4 +1,5 @@
 import type { Tavern, Channel, PeerInfo, PeerIdentity } from "./types.js";
+import type { TavernStore, TavernRecord, ChannelRecord } from "./store.js";
 import { randomUUID } from "node:crypto";
 
 const DEFAULT_CHANNEL_NAME = "General";
@@ -37,17 +38,68 @@ export type JoinChannelResult =
 
 export class TavernRooms {
   private readonly maxPeersPerChannel: number;
+  private readonly store: TavernStore;
   private readonly taverns = new Map<string, TavernState>();
   private readonly peerLocations = new Map<string, PeerLocation>();
 
-  public constructor(maxPeersPerChannel: number) {
+  public constructor(maxPeersPerChannel: number, store: TavernStore) {
     this.maxPeersPerChannel = maxPeersPerChannel;
+    this.store = store;
   }
 
-  public createTavern(name: string, icon: string | undefined, createdBy: string): Tavern {
+  public async init(): Promise<void> {
+    const records = await this.store.listTaverns();
+
+    for (const record of records) {
+      const channelRecords = await this.store.getChannels(record.id);
+      const channelMap = new Map<string, ChannelState>();
+
+      for (const ch of channelRecords) {
+        channelMap.set(ch.id, {
+          id: ch.id,
+          name: ch.name,
+          peersByPeerId: new Map<string, PeerInfo>()
+        });
+      }
+
+      this.taverns.set(record.id, {
+        id: record.id,
+        name: record.name,
+        icon: record.icon || undefined,
+        createdBy: record.creatorPublicKey,
+        createdAt: record.createdAt,
+        channels: channelMap
+      });
+    }
+  }
+
+  public tavernCount(): number {
+    return this.taverns.size;
+  }
+
+  public async createTavern(name: string, icon: string | undefined, createdBy: string): Promise<Tavern> {
     const tavernId = randomUUID();
     const channelId = randomUUID();
     const createdAt = new Date().toISOString();
+
+    const tavernRecord: TavernRecord = {
+      id: tavernId,
+      name,
+      icon: icon ?? "",
+      creatorPublicKey: createdBy,
+      createdAt,
+      signalingUrl: ""
+    };
+
+    const channelRecord: ChannelRecord = {
+      id: channelId,
+      tavernId,
+      name: DEFAULT_CHANNEL_NAME,
+      createdAt
+    };
+
+    await this.store.createTavern(tavernRecord);
+    await this.store.createChannel(tavernId, channelRecord);
 
     const defaultChannel: ChannelState = {
       id: channelId,
@@ -77,13 +129,24 @@ export class TavernRooms {
     return this.toTavern(tavern);
   }
 
-  public createChannel(tavernId: string, name: string): Channel | null {
+  public async createChannel(tavernId: string, name: string): Promise<Channel | null> {
     const tavern = this.taverns.get(tavernId);
     if (!tavern) {
       return null;
     }
 
     const channelId = randomUUID();
+    const createdAt = new Date().toISOString();
+
+    const channelRecord: ChannelRecord = {
+      id: channelId,
+      tavernId,
+      name,
+      createdAt
+    };
+
+    await this.store.createChannel(tavernId, channelRecord);
+
     const channel: ChannelState = {
       id: channelId,
       name,

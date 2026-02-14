@@ -1,5 +1,6 @@
 // WebSocket signaling server entry point for room-based WebRTC coordination.
 
+import { createServer } from "node:http";
 import { randomUUID } from "node:crypto";
 import type WebSocket from "ws";
 import { WebSocketServer } from "ws";
@@ -22,7 +23,11 @@ import {
   type ServerTavernInfoMessage
 } from "./types.js";
 
-const DEFAULT_PORT = 8080;
+import { MemoryStore } from "./memory-store.js";
+import { SqliteStore } from "./sqlite-store.js";
+import type { TavernStore } from "./store.js";
+
+const DEFAULT_PORT = 3001;
 const MAX_PEERS_PER_ROOM = 8;
 
 const rawPort = process.env.PORT;
@@ -30,9 +35,35 @@ const parsedPort = rawPort ? Number.parseInt(rawPort, 10) : Number.NaN;
 const port = Number.isFinite(parsedPort) ? parsedPort : DEFAULT_PORT;
 
 const roomManager = new RoomManager(MAX_PEERS_PER_ROOM);
-const tavernRooms = new TavernRooms(MAX_PEERS_PER_ROOM);
 
-const server = new WebSocketServer({ port, host: "0.0.0.0" });
+const storeBackend = process.env.TAVERN_STORE ?? "memory";
+let store: TavernStore;
+if (storeBackend === "memory") {
+  store = new MemoryStore();
+} else if (storeBackend === "sqlite") {
+  const dbPath = process.env.TAVERN_DB_PATH ?? "./data/tavern.db";
+  store = new SqliteStore(dbPath);
+} else {
+  throw new Error(`Unknown TAVERN_STORE value: "${storeBackend}". Supported: memory, sqlite.`);
+}
+
+const tavernRooms = new TavernRooms(MAX_PEERS_PER_ROOM, store);
+await tavernRooms.init();
+
+// HTTP server for health check + WebSocket upgrade.
+const httpServer = createServer((req, res) => {
+  if (req.method === "GET" && req.url === "/health") {
+    const body = JSON.stringify({ status: "ok", taverns: tavernRooms.tavernCount() });
+    res.writeHead(200, { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) });
+    res.end(body);
+    return;
+  }
+
+  res.writeHead(404, { "Content-Type": "text/plain" });
+  res.end("Not Found");
+});
+
+const wss = new WebSocketServer({ noServer: true });
 const peerSockets = new Map<string, WebSocket>();
 
 const writeLog = (event: string, data: Record<string, unknown>): void => {
@@ -71,7 +102,13 @@ const broadcastChannel = (tavernId: string, channelId: string, payload: unknown,
   }
 };
 
-server.on("connection", (socket, request) => {
+httpServer.on("upgrade", (request, socket, head) => {
+  wss.handleUpgrade(request, socket, head, (ws) => {
+    wss.emit("connection", ws, request);
+  });
+});
+
+wss.on("connection", (socket, request) => {
   const peerId = randomUUID();
   peerSockets.set(peerId, socket);
 
@@ -80,7 +117,7 @@ server.on("connection", (socket, request) => {
     remoteAddress: request.socket.remoteAddress ?? null
   });
 
-  socket.on("message", (rawPayload) => {
+  socket.on("message", async (rawPayload) => {
     const payloadText = typeof rawPayload === "string" ? rawPayload : rawPayload.toString("utf8");
     const message = parseClientMessage(payloadText);
 
@@ -90,7 +127,7 @@ server.on("connection", (socket, request) => {
     }
 
     if (message.type === "create-tavern") {
-      const created = tavernRooms.createTavern(
+      const created = await tavernRooms.createTavern(
         message.name.trim(),
         typeof message.icon === "string" && message.icon.trim().length > 0 ? message.icon.trim() : undefined,
         "unknown"
@@ -114,7 +151,7 @@ server.on("connection", (socket, request) => {
     }
 
     if (message.type === "create-channel") {
-      const channel = tavernRooms.createChannel(message.tavernId, message.name.trim());
+      const channel = await tavernRooms.createChannel(message.tavernId, message.name.trim());
       if (!channel) {
         sendError(socket, "Tavern not found");
         return;
@@ -343,4 +380,6 @@ server.on("connection", (socket, request) => {
   });
 });
 
-writeLog("server.started", { port });
+httpServer.listen(port, "0.0.0.0", () => {
+  writeLog("server.started", { port, store: storeBackend, taverns: tavernRooms.tavernCount() });
+});

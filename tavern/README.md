@@ -1,18 +1,16 @@
-```markdown
 <p align="center">
   <h1 align="center">Tavern</h1>
   <p align="center">
-    <strong>Open-source, decentralized, voice-first communication.</strong><br>
-    Think Discord meets Matrix meets Mumble — but actually easy to use.
+    <strong>Pull up a chair. Own the room.</strong><br>
+    Open-source, peer-to-peer voice chat — encrypted, self-hostable, zero signup.
   </p>
   <p align="center">
     <a href="#features">Features</a> •
-    <a href="#quick-start">Quick Start</a> •
-    <a href="#self-hosting">Self-Hosting</a> •
-    <a href="#architecture">Architecture</a> •
+    <a href="#quick-start-users">Users</a> •
+    <a href="#quick-start-self-hosting">Self-Host</a> •
+    <a href="#quick-start-development">Develop</a> •
     <a href="#roadmap">Roadmap</a> •
-    <a href="#contributing">Contributing</a> •
-    <a href="#license">License</a>
+    <a href="#contributing">Contributing</a>
   </p>
   <p align="center">
     <img src="https://img.shields.io/badge/license-AGPLv3-blue" alt="License">
@@ -23,263 +21,190 @@
 
 ---
 
-## What is Tavern?
-
-Tavern is a **voice-first communication platform** that's open-source, decentralized, and encrypted by default.
-
-- **Click a link → you're talking.** No signup. No email. No friction.
-- **P2P by default.** Small groups connect directly. No server in the middle.
-- **End-to-end encrypted.** Your conversations are yours.
-- **Self-hostable.** Run the whole stack with `docker-compose up`.
-- **Open-source forever.** AGPLv3. Community-driven. No data harvesting.
-
-If Tavern-the-company disappears tomorrow, the network keeps running.
-
----
+<!-- TODO: Replace with actual screenshot of the Retro theme -->
+<!-- <p align="center"><img src="docs/screenshot-retro.png" width="720" alt="Tavern desktop app — retro theme"></p> -->
 
 ## Features
 
-| Feature | Status |
-|---|---|
-| P2P voice (WebRTC + Opus) | 🟡 In Progress |
-| Push-to-talk & voice activity detection | 🟡 In Progress |
-| RNNoise suppression (Krisp-quality, open-source) | 🟡 In Progress |
-| End-to-end encryption (MLS) | 🟡 In Progress |
-| No account required — join with a display name | 🟡 In Progress |
-| Invite via link or QR code | ⚪ Planned |
-| Spatial audio for gaming/hangouts | ⚪ Planned |
-| Desktop app (Tauri — macOS, Windows, Linux) | 🟡 In Progress |
-| Self-hosting via Docker | ⚪ Planned |
-| Text chat (Matrix-compatible) | ⚪ Phase 2 |
-| Screen sharing & video | ⚪ Phase 3 |
-| Bot/plugin API | ⚪ Phase 3 |
+- **P2P Voice** — WebRTC mesh with Opus. Your audio goes directly to your friends, not through a server.
+- **Noise Suppression** — RNNoise (open-source, Krisp-quality) runs locally in WASM. No cloud processing.
+- **Push-to-Talk & VAD** — Hold a key to talk, or let voice activity detection handle it.
+- **Zero Signup** — Ed25519 identity keypair generated on first launch. Your tag is `TVN-XXXX-XXXX`. No email. No password.
+- **Taverns & Channels** — Create a Tavern, add voice channels, invite friends with a link.
+- **Themes** — Dark, Light, and Retro built-in. Custom CSS themes supported.
+- **Desktop App** — Tauri (Rust + web). ~10x lighter than Electron. Windows, macOS, Linux.
+- **Self-Hostable** — `docker compose up -d` and you own the entire stack.
+- **SQLite Persistence** — Taverns and channels survive server restarts.
+- **TURN Relay** — coturn fallback for peers behind restrictive NATs.
 
 ---
 
-## Quick Start
+## Quick Start (Users)
+
+> **Desktop app downloads coming soon.** For now, run from source or use the web client.
+
+Connect to any Tavern by opening an invite link — no account needed. Set a display name and start talking.
+
+---
+
+## Quick Start (Self-Hosting)
+
+Run your own Tavern server with Docker:
+
+```bash
+git clone https://github.com/tavern/tavern.git
+cd tavern/docker
+docker compose up -d
+```
+
+Verify:
+
+```bash
+curl http://localhost:3001/health
+# → {"status":"ok","taverns":0}
+```
+
+| Variable | Description | Default |
+|---|---|---|
+| `TAVERN_PORT` | Signaling server port | `3001` |
+| `TAVERN_TURN_SECRET` | TURN auth secret (**change in production**) | `tavern-dev-secret` |
+| `TAVERN_DOMAIN` | Domain for TURN realm / TLS | `localhost` |
+| `TAVERN_STORE` | Persistence: `memory` or `sqlite` | `sqlite` |
+| `TAVERN_DB_PATH` | SQLite file path (inside container) | `/data/tavern.db` |
+
+Full guide: [`docs/self-hosting.md`](docs/self-hosting.md)
+
+---
+
+## Quick Start (Development)
 
 ### Prerequisites
 
 - **Node.js 20+** — [nodejs.org](https://nodejs.org/)
-- **Rust toolchain** — [rustup.rs](https://rustup.rs/)
+- **Rust toolchain** — [rustup.rs](https://rustup.rs/) (for the desktop app)
 - **Tauri CLI** — `cargo install tauri-cli`
 
 ### Run Locally
 
-```
-
+```bash
 # Clone the repo
-
 git clone https://github.com/tavern/tavern.git
-
 cd tavern
 
 # Install dependencies
-
 npm install
 
 # Start the signaling server
-
 npm run dev --workspace=packages/signaling-server
 
 # In another terminal — start the desktop client
-
 npm run dev --workspace=packages/client-desktop
-
 ```
 
-Open two browser tabs pointing at the local client. If you can hear yourself — it's working.
+Open two clients. If you can hear yourself — it's working.
 
 ---
 
-## Self-Hosting
+## Tech Stack
 
-Run your own Tavern infrastructure with a single command:
-
-```
-
-git clone https://github.com/tavern/tavern.git
-
-cd tavern
-
-docker-compose up -d
-
-```
-
-### Environment Variables
-
-| Variable | Description | Default |
+| Component | Technology | Why |
 |---|---|---|
-| `TAVERN_PORT` | Signaling server port | `8080` |
-| `TAVERN_DOMAIN` | Domain for TLS/certs | `localhost` |
-| `TAVERN_TURN_SECRET` | TURN server auth secret | (required) |
-
-See [`docs/self-hosting.md`](docs/self-hosting.md) for the full guide.
+| Voice transport | WebRTC | P2P, low-latency, battle-tested |
+| Audio codec | Opus | Optimized for voice, tunable bitrate |
+| Signaling | WebSocket (ws) | Simple, real-time, bidirectional |
+| Noise suppression | RNNoise (WASM) | Open-source, runs locally, no cloud |
+| Desktop app | Tauri (Rust + web) | ~10x lighter than Electron |
+| Identity | Ed25519 | Zero-signup, cryptographic identity |
+| Persistence | SQLite (better-sqlite3) | Zero-config, single-file, fast |
+| Containerization | Docker + coturn | One-command self-hosting |
 
 ---
 
 ## Architecture
 
 ```
-
-┌─────────────────────────────────────┐
-
-│           Client Layer              │
-
-│  Desktop (Tauri) • Mobile • Web     │
-
-└──────────────┬──────────────────────┘
-
-│
-
-┌──────────────▼──────────────────────┐
-
-│          Protocol Layer             │
-
-│  WebRTC Voice • MLS Encryption      │
-
-│  libp2p Signaling                   │
-
-└──────────────┬──────────────────────┘
-
-│
-
-┌──────────────▼──────────────────────┐
-
-│       Infrastructure Layer          │
-
-│  DHT Discovery • Community Relays   │
-
-│  Tavern Pro Servers (SFU)           │
-
-└─────────────────────────────────────┘
-
+Client (Tauri / Browser)
+    ├── Voice Engine ─── WebRTC mesh ──→ Peers
+    ├── Crypto ────── Ed25519 identity
+    └── WebSocket ──→ Signaling Server ──→ SQLite
+                         └──→ coturn (TURN relay)
 ```
 
-### How Routing Works
-
-| Group Size | Method | Cost |
-|---|---|---|
-| ≤8 peers | Direct P2P (WebRTC mesh) | Free forever |
-| NAT issues | Community relay nodes (volunteer-run) | Free |
-| Large groups / Pro | Tavern Pro dedicated servers (SFU) | Paid |
-
-### Tech Stack
-
-| Layer | Technology | Why |
-|---|---|---|
-| Voice transport | WebRTC | P2P, low latency, battle-tested |
-| Signaling | libp2p / WebSocket | Decentralized discovery + relay |
-| Audio codec | Opus | Low latency, high quality |
-| Desktop client | Tauri (Rust + web) | ~10x lighter than Electron |
-| Noise suppression | RNNoise | Open-source, runs locally |
-| Identity | Ed25519 keypairs | No email/password required |
-| Encryption | MLS (IETF standard) | Group E2EE |
+Full architecture docs: [`docs/architecture.md`](docs/architecture.md)
 
 ---
 
 ## Project Structure
 
 ```
-
 tavern/
-
 ├── packages/
-
-│   ├── signaling-server/    # Node.js WebSocket signaling
-
-│   ├── voice-engine/        # WebRTC + Opus wrapper
-
-│   ├── crypto/              # MLS / Noise encryption layer
-
-│   ├── client-desktop/      # Tauri app shell
-
-│   └── shared/              # Shared types, utils, constants
-
+│   ├── signaling-server/    # WebSocket signaling + SQLite persistence
+│   ├── voice-engine/        # WebRTC + Opus + RNNoise audio engine
+│   ├── crypto/              # Ed25519 identity + recovery
+│   ├── client-desktop/      # Tauri desktop app shell
+│   └── shared/              # Cross-package types and utilities
 ├── docker/
-
-│   ├── Dockerfile.signaling
-
-│   └── docker-compose.yml
-
+│   ├── Dockerfile.signaling # Multi-stage production build
+│   └── docker-compose.yml   # Signaling + coturn stack
 ├── docs/
-
-├── .github/workflows/       # CI/CD
-
-├── LICENSE                  # AGPLv3
-
-├── [README.md]
-
-└── [CONTRIBUTING.md]
-
+│   ├── self-hosting.md      # Self-hosting guide
+│   └── architecture.md      # Architecture deep-dive
+├── CONTRIBUTING.md
+└── LICENSE                  # AGPLv3
 ```
 
 ---
 
 ## Roadmap
 
-### Phase 1 - Voice MVP *(Months 1–3)* ← **We are here**
-- WebRTC voice engine with Opus
-- P2P connections with STUN/TURN fallback
-- Tavern creation + invite links
-- Desktop app (Tauri)
-- Self-hosting via Docker
-- RNNoise integration
-- E2EE via MLS
+### Phase 1 — Voice MVP ← **current**
+- [x] WebRTC voice engine with Opus
+- [x] P2P mesh connections with STUN/TURN fallback
+- [x] Tavern & channel creation
+- [x] Push-to-talk & voice activity detection
+- [x] RNNoise noise suppression
+- [x] Ed25519 identity (TVN-XXXX-XXXX)
+- [x] Desktop app (Tauri)
+- [x] Self-hosting via Docker
+- [x] SQLite persistence
+- [ ] E2EE via MLS
+- [ ] Invite links & QR codes
 
-### Phase 2 - Text + Federation *(Months 4–6)*
+### Phase 2 — Text + Federation
 - Encrypted text chat (Matrix-compatible)
 - Federation between self-hosted instances
 - Roles and permissions
 - Mobile app (beta)
-- Tavern Pro launch
 
-### Phase 3 - Rich Features *(Months 7–12)*
+### Phase 3 — Rich Features
 - Screen sharing and video
-- Bot/plugin API (open, self-hostable)
+- Bot/plugin API
 - Custom emoji and reactions
-- Thread support
+- Spatial audio
 
-### Phase 4 - Scale + Ecosystem *(Year 2+)*
+### Phase 4 — Scale + Ecosystem
 - Plugin marketplace
 - Enterprise features (SSO, audit, compliance)
 - Localization / i18n
-- Public relay node incentive program
 
 ---
 
 ## Contributing
 
-We'd love your help! Check out [`CONTRIBUTING.md`](CONTRIBUTING.md) for:
-
-- Development setup
-- Branching strategy (`main` / `develop` / `feat/*` / `fix/*`)
-- Commit conventions (Conventional Commits)
-- PR guidelines
-- Code style (TypeScript strict, Rust for Tauri/crypto)
-
----
-
-## Why Tavern?
-
-> **"Pull up a chair. Own the room."**
-
-- **No signup.** Click a link and talk.
-- **No tracking.** E2EE by default. No ads. No data sales. Ever.
-- **Your choice.** Self-host or use managed infrastructure.
-- **Community-built.** Open-source means you build what you need - not what a PM decided ships this quarter.
+We'd love your help! See [`CONTRIBUTING.md`](CONTRIBUTING.md) for development setup, branching strategy, commit conventions, and code style guidelines.
 
 ---
 
 ## License
 
-Tavern is licensed under the **GNU Affero General Public License v3.0** (AGPLv3).
+**GNU Affero General Public License v3.0** (AGPLv3) — see [`LICENSE`](LICENSE).
 
-See [`LICENSE`](LICENSE) for details.
+If Tavern-the-company disappeared tomorrow, the network keeps running.
 
 ---
 
 <p align="center">
-  <strong>Pull up a chair. Let's build something great.</strong> 
+  <strong>Pull up a chair. Let's build something great.</strong>
 </p>
 ```
