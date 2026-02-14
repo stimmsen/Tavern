@@ -262,7 +262,7 @@ const run = async (): Promise<void> => {
   const overrideUrl = params.get("ws")?.trim();
   const signalingUrl =
     overrideUrl ||
-    `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.hostname}:8080`;
+    `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.hostname}:3001`;
 
   const keypair = await getOrCreateKeypair();
   let publicKeyHex = await getPublicKeyHex(keypair);
