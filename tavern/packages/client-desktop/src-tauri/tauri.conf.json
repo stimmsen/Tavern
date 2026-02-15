@@ -7,7 +7,7 @@
     "beforeDevCommand": "npm --prefix ../voice-engine run dev",
     "beforeBuildCommand": "npm --prefix ../voice-engine run build",
     "devUrl": "http://localhost:3000",
-    "frontendDist": "../../voice-engine"
+    "frontendDist": "../../voice-engine/dist"
   },
   "app": {
     "windows": [

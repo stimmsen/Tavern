@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Minimal browser voice client for Tavern WebRTC mesh calls.",
   "scripts": {
-    "build": "esbuild src/index.ts --bundle --outfile=bundle.js --format=esm --platform=browser && esbuild src/rnnoise-worklet-processor.ts --bundle --outfile=rnnoise-worklet-processor.js --format=esm --platform=browser",
+    "build": "node build.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "dev": "npx serve ."
   },

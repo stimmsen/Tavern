@@ -10,7 +10,7 @@ export const applyTheme = (theme: string): void => {
     return;
   }
 
-  link.href = `./src/themes/${theme}.css`;
+  link.href = `./themes/${theme}.css`;
   updateSettings({ theme });
 };
 
