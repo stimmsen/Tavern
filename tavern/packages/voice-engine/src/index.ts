@@ -1,4 +1,4 @@
-import { iceServers } from "../../shared/src/ice-config.js";
+import { getIceServers } from "../../shared/src/ice-config.js";
 import type { Channel, PeerIdentity, PeerInfo, SavedTavern, Tavern } from "../../shared/src/types.js";
 import {
   deriveIdentityTag,
@@ -429,9 +429,11 @@ const run = async (): Promise<void> => {
     refreshParticipants();
   };
 
+  const resolvedIceServers = await getIceServers();
+
   const mesh = new MeshManager({
     localStream: localAudio.stream,
-    iceServers,
+    iceServers: resolvedIceServers,
     onSignal: (message) => {
       if (socket.readyState === WebSocket.OPEN) {
         socket.send(JSON.stringify(message));

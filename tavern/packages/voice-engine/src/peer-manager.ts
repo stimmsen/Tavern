@@ -86,6 +86,9 @@ export class PeerManager {
 
       const playbackStream = this.onRemoteStream(peerId, stream);
       entry.audioElement.srcObject = playbackStream ?? stream;
+      entry.audioElement.play().catch(() => {
+        // Autoplay blocked — retry on next user gesture
+      });
     };
 
     connection.onconnectionstatechange = () => {
@@ -119,6 +122,8 @@ export class PeerManager {
     const audioElement = document.createElement("audio");
     audioElement.autoplay = true;
     audioElement.setAttribute("playsinline", "true");
+    audioElement.style.display = "none";
+    document.body.appendChild(audioElement);
 
     const entry: PeerEntry = { connection, audioElement };
     this.peers.set(peerId, entry);
@@ -196,6 +201,7 @@ export class PeerManager {
     entry.connection.ontrack = null;
     entry.connection.onconnectionstatechange = null;
     entry.connection.close();
+    entry.audioElement.pause();
     entry.audioElement.srcObject = null;
     entry.audioElement.remove();
     this.peers.delete(peerId);
