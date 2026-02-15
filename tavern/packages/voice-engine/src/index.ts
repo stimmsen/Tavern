@@ -260,9 +260,23 @@ const run = async (): Promise<void> => {
 
   const params = new URLSearchParams(window.location.search);
   const overrideUrl = params.get("ws")?.trim();
+  const savedUrl = settings.signalingUrl?.trim();
   const signalingUrl =
     overrideUrl ||
+    savedUrl ||
     `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.hostname}:3001`;
+
+  // Populate server URL input
+  const signalingUrlInput = document.getElementById("signaling-url-input") as HTMLInputElement | null;
+  if (signalingUrlInput) {
+    signalingUrlInput.value = settings.signalingUrl || "";
+  }
+  const signalingUrlButton = document.getElementById("signaling-url-set");
+  signalingUrlButton?.addEventListener("click", () => {
+    const newUrl = signalingUrlInput?.value.trim() || "";
+    updateSettings({ signalingUrl: newUrl });
+    window.location.reload();
+  });
 
   const keypair = await getOrCreateKeypair();
   let publicKeyHex = await getPublicKeyHex(keypair);

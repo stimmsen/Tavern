@@ -7,6 +7,7 @@ export interface TavernSettings {
   peerVolumes: Record<string, number>;
   customSkinCss: string | null;
   selectedSkinName: string | null;
+  signalingUrl: string;
 }
 
 const STORAGE_KEY = "tavern-settings";
@@ -19,7 +20,8 @@ const defaultSettings: TavernSettings = {
   outputDeviceId: null,
   peerVolumes: {},
   customSkinCss: null,
-  selectedSkinName: null
+  selectedSkinName: null,
+  signalingUrl: ""
 };
 
 const isObject = (value: unknown): value is Record<string, unknown> => {
@@ -62,7 +64,8 @@ export const loadSettings = (): TavernSettings => {
         )
       : {},
     customSkinCss: typeof parsed.customSkinCss === "string" ? parsed.customSkinCss : null,
-    selectedSkinName: typeof parsed.selectedSkinName === "string" ? parsed.selectedSkinName : null
+    selectedSkinName: typeof parsed.selectedSkinName === "string" ? parsed.selectedSkinName : null,
+    signalingUrl: typeof parsed.signalingUrl === "string" ? parsed.signalingUrl : ""
   };
 };
 

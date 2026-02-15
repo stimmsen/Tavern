@@ -101,6 +101,16 @@
       </div>
 
       <section class="tavern-settings-section">
+        <h3 class="tavern-form-title">Server</h3>
+        <label class="tavern-settings-label" for="signaling-url-input">Signaling Server URL</label>
+        <div class="tavern-inline-row">
+          <input id="signaling-url-input" class="tavern-input" type="text" placeholder="ws://your-server:3001" />
+          <button id="signaling-url-set" class="tavern-button tavern-button-secondary" type="button">Connect</button>
+        </div>
+        <p class="tavern-hint">Enter your server address and click Connect. Leave empty for localhost.</p>
+      </section>
+
+      <section class="tavern-settings-section">
         <h3 class="tavern-form-title">Audio</h3>
         <label class="tavern-settings-label" for="input-device-select">Input Device</label>
         <select id="input-device-select" class="tavern-input"></select>

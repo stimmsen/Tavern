@@ -164,6 +164,12 @@ select.tavern-input {
   gap: var(--tavern-space-sm);
 }
 
+.tavern-hint {
+  font-size: 0.75rem;
+  opacity: 0.6;
+  margin: 0.25rem 0 0;
+}
+
 .tavern-tavern-actions {
   display: grid;
   gap: var(--tavern-space-md);
