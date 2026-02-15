@@ -258,24 +258,31 @@ const run = async (): Promise<void> => {
   setNotificationsEnabled(settings.notificationsEnabled);
   setPttKey(settings.pttKey);
 
+  const DEFAULT_SIGNALING_URL = "ws://159.203.140.89:3001";
+
   const params = new URLSearchParams(window.location.search);
   const overrideUrl = params.get("ws")?.trim();
   const savedUrl = settings.signalingUrl?.trim();
   const signalingUrl =
     overrideUrl ||
     savedUrl ||
-    `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.hostname}:3001`;
+    DEFAULT_SIGNALING_URL;
 
   // Populate server URL input
   const signalingUrlInput = document.getElementById("signaling-url-input") as HTMLInputElement | null;
   if (signalingUrlInput) {
-    signalingUrlInput.value = settings.signalingUrl || "";
+    signalingUrlInput.value = savedUrl || DEFAULT_SIGNALING_URL;
   }
   const signalingUrlButton = document.getElementById("signaling-url-set");
   signalingUrlButton?.addEventListener("click", () => {
     const newUrl = signalingUrlInput?.value.trim() || "";
     updateSettings({ signalingUrl: newUrl });
-    window.location.reload();
+    // Tauri webview supports location.reload() but also try fallback
+    try {
+      window.location.reload();
+    } catch {
+      window.location.href = window.location.href;
+    }
   });
 
   const keypair = await getOrCreateKeypair();
