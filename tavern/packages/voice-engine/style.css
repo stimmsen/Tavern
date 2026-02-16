@@ -29,6 +29,62 @@ body {
   background: radial-gradient(circle at top, var(--tavern-channel-hover), var(--tavern-bg-primary) 68%);
 }
 
+.tavern-titlebar {
+  display: none;
+}
+
+body.tavern-desktop .tavern-titlebar {
+  height: 42px;
+  margin: var(--tavern-space-sm) auto 0;
+  width: min(1240px, calc(100vw - 20px));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid var(--tavern-border);
+  border-radius: 14px 14px 0 0;
+  background: color-mix(in srgb, var(--tavern-bg-secondary) 92%, black);
+}
+
+.tavern-titlebar-drag {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  width: 100%;
+  padding: 0 12px;
+}
+
+.tavern-titlebar-brand {
+  font-size: 0.9rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--tavern-text-muted);
+}
+
+.tavern-window-controls {
+  display: flex;
+  gap: 6px;
+  padding: 0 8px;
+}
+
+.tavern-window-control {
+  width: 30px;
+  height: 28px;
+  border: 1px solid var(--tavern-border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--tavern-text-color);
+  cursor: pointer;
+}
+
+.tavern-window-control:hover {
+  background: var(--tavern-channel-hover);
+}
+
+body.tavern-desktop .tavern-layout {
+  margin-top: 0;
+  border-radius: 0 0 var(--tavern-radius) var(--tavern-radius);
+}
+
 .tavern-layout {
   width: min(1240px, calc(100vw - 20px));
   margin: var(--tavern-space-lg) auto;

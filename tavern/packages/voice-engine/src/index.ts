@@ -12,13 +12,16 @@ import {
 } from "../../crypto/src/index.js";
 import { createLocalAudioController } from "./audio.js";
 import {
+  closeMainWindow,
   isDesktop,
   listDesktopSkins,
+  minimizeMainWindow,
   notifyDesktop,
   onDesktopEvent,
   onDesktopPtt,
   setGlobalPttKey,
-  setTrayState
+  setTrayState,
+  toggleMaximizeMainWindow
 } from "./desktop-bridge.js";
 import { MeshManager } from "./mesh.js";
 import { NoiseSuppressor } from "./noise-suppression.js";
@@ -52,6 +55,7 @@ import {
   onPttKeySubmit,
   onPttToggle,
   onSettingsOpen,
+  onSettingsClose,
   onSkinReset,
   onSkinSelect,
   onSkinUpload,
@@ -249,6 +253,10 @@ const parseSkinFile = async (file: File): Promise<{ name: string; css: string } 
 };
 
 const run = async (): Promise<void> => {
+  if (isDesktop()) {
+    document.body.classList.add("tavern-desktop");
+  }
+
   const settings = loadSettings();
   applyTheme(settings.theme);
   setThemeOptions(settings.theme);
@@ -323,6 +331,10 @@ const run = async (): Promise<void> => {
   setPttEnabled(false, ptt.getKey());
   setPttState(false, false);
   setMuteLabel(localAudio.isMuted());
+  let localInputSpeaking = false;
+  const stopLocalSpeakingMonitor = localAudio.monitorSpeaking((speaking) => {
+    localInputSpeaking = speaking;
+  });
 
   const socket = new WebSocket(signalingUrl);
 
@@ -617,6 +629,23 @@ const run = async (): Promise<void> => {
     })();
   });
 
+  const windowMinimizeButton = document.getElementById("window-minimize");
+  windowMinimizeButton?.addEventListener("click", () => {
+    void minimizeMainWindow();
+  });
+
+  const windowMaximizeButton = document.getElementById("window-maximize");
+  windowMaximizeButton?.addEventListener("click", () => {
+    void toggleMaximizeMainWindow();
+  });
+
+  const windowCloseButton = document.getElementById("window-close");
+  windowCloseButton?.addEventListener("click", () => {
+    void closeMainWindow();
+  });
+
+  onSettingsClose();
+
   onInputDeviceChange((deviceId) => {
     void (async () => {
       try {
@@ -742,15 +771,16 @@ const run = async (): Promise<void> => {
     setPttState(ptt.isEnabled(), ptt.isTransmitting());
 
     if (vadSupported && !ptt.isEnabled()) {
-      const speaking = vad.isVoiceActive();
-      setVadState(speaking);
-      setLocalSpeaking(speaking);
+      setVadState(vad.isVoiceActive());
+    }
 
-      const self = participants.get(localIdentity.publicKeyHex);
-      if (self) {
-        self.isSpeaking = speaking;
-        updateParticipantSpeaking(localIdentity.publicKeyHex, speaking);
-      }
+    const localSpeaking = localInputSpeaking && localAudio.outgoingTrack.enabled && !localAudio.isMuted();
+    setLocalSpeaking(localSpeaking);
+
+    const self = participants.get(localIdentity.publicKeyHex);
+    if (self) {
+      self.isSpeaking = localSpeaking;
+      updateParticipantSpeaking(localIdentity.publicKeyHex, localSpeaking);
     }
   }, 50);
 
@@ -1029,6 +1059,7 @@ const run = async (): Promise<void> => {
     }
 
     stopWatchingDevices();
+    stopLocalSpeakingMonitor();
     unlistenDesktopPtt?.();
     unlistenTrayMute?.();
     unlistenTrayDisconnect?.();

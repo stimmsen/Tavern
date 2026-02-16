@@ -4,12 +4,13 @@
   "version": "0.1.0",
   "identifier": "gg.tavern.desktop",
   "build": {
-    "beforeDevCommand": "npm --prefix ../voice-engine run dev",
+    "beforeDevCommand": "npm --prefix ../voice-engine run build && npm --prefix ../voice-engine run dev",
     "beforeBuildCommand": "npm --prefix ../voice-engine run build",
     "devUrl": "http://localhost:3000",
     "frontendDist": "../../voice-engine/dist"
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [
       {
         "title": "Tavern",
@@ -17,7 +18,8 @@
         "height": 700,
         "minWidth": 800,
         "minHeight": 600,
-        "resizable": true
+        "resizable": true,
+        "decorations": false
       }
     ],
     "security": {

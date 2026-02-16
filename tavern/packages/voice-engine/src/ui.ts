@@ -52,6 +52,7 @@ const pttStatusElement = byId<HTMLParagraphElement>("ptt-status");
 const inviteFeedbackElement = byId<HTMLParagraphElement>("invite-feedback");
 const settingsButton = byId<HTMLButtonElement>("settings-button");
 const settingsCloseButton = byId<HTMLButtonElement>("settings-close");
+const settingsPanel = byId<HTMLElement>("settings-panel");
 const themeSelect = byId<HTMLSelectElement>("theme-select");
 const skinSelect = byId<HTMLSelectElement>("skin-select");
 const skinUploadInput = byId<HTMLInputElement>("skin-upload");
@@ -331,10 +332,23 @@ export const onSettingsOpen = (handler: () => void): void => {
   });
 };
 
-export const onSettingsClose = (handler: () => void): void => {
+export const onSettingsClose = (handler?: () => void): void => {
   settingsCloseButton.addEventListener("click", () => {
     closeSettings();
-    handler();
+    handler?.();
+  });
+
+  window.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") {
+      return;
+    }
+
+    if (!settingsPanel.classList.contains("tavern-settings-open")) {
+      return;
+    }
+
+    closeSettings();
+    handler?.();
   });
 };
 

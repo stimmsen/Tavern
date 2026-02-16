@@ -830,9 +830,12 @@ var RnnoiseWorkletProcessor = class extends AudioWorkletProcessor {
       this.rnnoiseState = rnnoise.createDenoiseState();
       this.port.postMessage({ type: "init-complete" });
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const normalized = message.toLowerCase();
+      const initError = normalized.includes("not compiled for this environment") ? "rnnoise wasm build incompatible with AudioWorklet scope" : message;
       this.port.postMessage({
         type: "init-error",
-        data: error instanceof Error ? error.message : String(error)
+        data: initError
       });
     }
   }

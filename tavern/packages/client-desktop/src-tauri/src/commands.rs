@@ -141,3 +141,34 @@ pub fn focus_main_window(app: AppHandle) -> Result<(), String> {
 
     Ok(())
 }
+
+#[tauri::command]
+pub fn minimize_main_window(app: AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.minimize();
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn toggle_maximize_main_window(app: AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("main") {
+        if window.is_maximized().unwrap_or(false) {
+            let _ = window.unmaximize();
+        } else {
+            let _ = window.maximize();
+        }
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn close_main_window(app: AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.close();
+    }
+
+    Ok(())
+}

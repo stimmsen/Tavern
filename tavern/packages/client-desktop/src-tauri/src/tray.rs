@@ -63,13 +63,20 @@ pub fn setup_tray(app: &mut App) -> tauri::Result<()> {
             _ => {}
         })
         .on_tray_icon_event(move |tray, event| {
-            if let tauri::tray::TrayIconEvent::Click { .. } = event {
-                if let Some(window) = tray.app_handle().get_webview_window("main") {
-                    if window.is_visible().unwrap_or(false) {
-                        let _ = window.hide();
-                    } else {
-                        let _ = window.show();
-                        let _ = window.set_focus();
+            if let tauri::tray::TrayIconEvent::Click {
+                button,
+                button_state,
+                ..
+            } = event
+            {
+                if matches!(button, tauri::tray::MouseButton::Left)
+                    && matches!(button_state, tauri::tray::MouseButtonState::Up)
+                {
+                    if let Some(window) = tray.app_handle().get_webview_window("main") {
+                        if !window.is_visible().unwrap_or(false) {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
                     }
                 }
             }

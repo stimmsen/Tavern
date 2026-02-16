@@ -57,6 +57,7 @@ export class NoiseSuppressor {
   private lastVadProbability = 1;
   private workletNode: AudioWorkletNode | null = null;
   private vadPollHandle: number | null = null;
+  private workletRnnoiseUnsupported = false;
 
   public async init(): Promise<void> {
     this.mobileDevice = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
@@ -83,7 +84,7 @@ export class NoiseSuppressor {
       return passthrough;
     }
 
-    if (audioContext.audioWorklet) {
+    if (audioContext.audioWorklet && !this.workletRnnoiseUnsupported) {
       try {
         await audioContext.audioWorklet.addModule("rnnoise-worklet-processor.js");
         const workletNode = new AudioWorkletNode(audioContext, "rnnoise-worklet-processor", {
@@ -101,12 +102,24 @@ export class NoiseSuppressor {
         console.log("[rnnoise] AudioWorklet processor initialized");
         return workletNode;
       } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (message.toLowerCase().includes("not compiled for this environment")) {
+          this.workletRnnoiseUnsupported = true;
+          console.warn("[rnnoise] AudioWorklet RNNoise runtime is incompatible with this environment");
+        }
+
         console.log("[rnnoise] AudioWorklet init failed — using ScriptProcessorNode fallback", {
-          error: error instanceof Error ? error.message : String(error)
+          error: message
         });
+        this.vadAvailable = false;
+        this.lastVadProbability = 1;
       }
     } else {
-      console.warn("[rnnoise] AudioWorklet not supported — using ScriptProcessorNode fallback");
+      if (!audioContext.audioWorklet) {
+        console.warn("[rnnoise] AudioWorklet not supported — using ScriptProcessorNode fallback");
+      }
+      this.vadAvailable = false;
+      this.lastVadProbability = 1;
     }
 
     return this.createLegacyScriptProcessorNode(audioContext, sourceNode);
@@ -281,12 +294,12 @@ export class NoiseSuppressor {
         }
       }
 
-      const processed48k = clampLength(dequeueToLength(outputQueue48k, input48k.length), input48k.length);
+      const processedChunk = dequeueToLength(outputQueue48k, input48k.length);
+      const processed48k = new Float32Array(input48k.length);
+      processed48k.set(processedChunk);
 
-      if (processed48k.length < input48k.length) {
-        for (let i = processed48k.length; i < input48k.length; i += 1) {
-          processed48k[i] = input48k[i] ?? 0;
-        }
+      if (processedChunk.length < input48k.length) {
+        processed48k.set(input48k.subarray(processedChunk.length), processedChunk.length);
       }
 
       const outputAtContextRate = clampLength(

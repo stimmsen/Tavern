@@ -23,7 +23,7 @@ type DesktopWindow = Window & {
 const desktopWindow = window as DesktopWindow;
 
 export const isDesktop = (): boolean => {
-  return typeof desktopWindow.__TAURI__ !== "undefined";
+  return typeof desktopWindow.__TAURI__ !== "undefined" || navigator.userAgent.includes("Tauri");
 };
 
 const invoke = async (command: string, payload?: Record<string, unknown>): Promise<void> => {
@@ -44,6 +44,18 @@ export const setGlobalPttKey = async (accelerator: string): Promise<void> => {
 
 export const notifyDesktop = async (title: string, body: string): Promise<void> => {
   await invoke("notify_desktop", { title, body });
+};
+
+export const minimizeMainWindow = async (): Promise<void> => {
+  await invoke("minimize_main_window");
+};
+
+export const toggleMaximizeMainWindow = async (): Promise<void> => {
+  await invoke("toggle_maximize_main_window");
+};
+
+export const closeMainWindow = async (): Promise<void> => {
+  await invoke("close_main_window");
 };
 
 export const listDesktopSkins = async (): Promise<Array<{ name: string; css: string }>> => {

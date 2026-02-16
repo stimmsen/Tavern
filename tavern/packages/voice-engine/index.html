@@ -5,9 +5,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Tavern Voice</title>
     <link rel="stylesheet" href="./style.css" />
-    <link id="theme-link" rel="stylesheet" href="./themes/dark.css" />
+    <link id="theme-link" rel="stylesheet" href="./src/themes/dark.css" />
   </head>
   <body>
+    <header class="tavern-titlebar" aria-label="Window title bar">
+      <div class="tavern-titlebar-drag" data-tauri-drag-region>
+        <span class="tavern-titlebar-brand">Tavern</span>
+      </div>
+      <div class="tavern-window-controls" aria-label="Window controls">
+        <button id="window-minimize" class="tavern-window-control" type="button" aria-label="Minimize">-</button>
+        <button id="window-maximize" class="tavern-window-control" type="button" aria-label="Maximize">[]</button>
+        <button id="window-close" class="tavern-window-control" type="button" aria-label="Close">x</button>
+      </div>
+    </header>
+
     <main class="tavern-layout">
       <aside class="tavern-servers-panel">
         <h2 class="tavern-section-title">Taverns</h2>
