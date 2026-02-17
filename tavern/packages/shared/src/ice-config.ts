@@ -1,8 +1,27 @@
 // Shared ICE server configuration for WebRTC peer connections.
 // TURN credentials use coturn's time-limited HMAC scheme (use-auth-secret).
 
-const TURN_HOST = "159.203.140.89";
+const DEFAULT_TURN_HOST = "159.203.140.89";
 const TURN_SECRET = "tavern-dev-secret";
+
+/**
+ * Extract the hostname from a signaling WebSocket URL so the TURN server
+ * automatically matches the signaling server.  Falls back to the default
+ * host when the URL cannot be parsed.
+ */
+const turnHostFromSignalingUrl = (signalingUrl: string | undefined): string => {
+  if (!signalingUrl) {
+    return DEFAULT_TURN_HOST;
+  }
+
+  try {
+    // Convert ws:// / wss:// to http(s):// so the URL constructor can parse it.
+    const httpUrl = signalingUrl.replace(/^wss:/i, "https:").replace(/^ws:/i, "http:");
+    return new URL(httpUrl).hostname;
+  } catch {
+    return DEFAULT_TURN_HOST;
+  }
+};
 
 /**
  * Generate temporary TURN credentials using coturn's TURN REST API
@@ -29,14 +48,26 @@ const generateTurnCredentials = async (): Promise<{ username: string; credential
   return { username, credential };
 };
 
-export const getIceServers = async (): Promise<RTCIceServer[]> => {
+/**
+ * Build the ICE server list.  When a signaling URL is provided the TURN
+ * host is derived from it so that changing the server in settings also
+ * routes media through the matching TURN relay.
+ */
+export const getIceServers = async (signalingUrl?: string): Promise<RTCIceServer[]> => {
   const turn = await generateTurnCredentials();
+  const host = turnHostFromSignalingUrl(signalingUrl);
+
+  const isSecure = signalingUrl ? /^wss:/i.test(signalingUrl) : false;
+
+  const turnUrls = isSecure
+    ? [`turns:${host}:5349`, `turns:${host}:5349?transport=tcp`]
+    : [`turn:${host}:3478`, `turn:${host}:3478?transport=tcp`];
 
   return [
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" },
     {
-      urls: [`turn:${TURN_HOST}:3478`, `turn:${TURN_HOST}:3478?transport=tcp`],
+      urls: turnUrls,
       username: turn.username,
       credential: turn.credential
     }

@@ -15,6 +15,7 @@ type PeerEntry = {
 type PeerManagerOptions = {
   localStream: MediaStream;
   iceServers: RTCIceServer[];
+  iceTransportPolicy?: RTCIceTransportPolicy;
   sendSignal: (message: SignalSendMessage) => void;
   onRemoteStream: (peerId: string, stream: MediaStream) => MediaStream | void;
   onPeerRemoved: (peerId: string) => void;
@@ -37,6 +38,7 @@ export class PeerManager {
   private readonly peers = new Map<string, PeerEntry>();
   private readonly localStream: MediaStream;
   private readonly iceServers: RTCIceServer[];
+  private readonly iceTransportPolicy: RTCIceTransportPolicy;
   private readonly sendSignal: (message: SignalSendMessage) => void;
   private readonly onRemoteStream: (peerId: string, stream: MediaStream) => void;
   private readonly onPeerRemoved: (peerId: string) => void;
@@ -44,6 +46,7 @@ export class PeerManager {
   public constructor(options: PeerManagerOptions) {
     this.localStream = options.localStream;
     this.iceServers = options.iceServers;
+    this.iceTransportPolicy = options.iceTransportPolicy ?? "all";
     this.sendSignal = options.sendSignal;
     this.onRemoteStream = options.onRemoteStream;
     this.onPeerRemoved = options.onPeerRemoved;
@@ -55,7 +58,10 @@ export class PeerManager {
       return existing;
     }
 
-    const connection = new RTCPeerConnection({ iceServers: this.iceServers });
+    const connection = new RTCPeerConnection({
+      iceServers: this.iceServers,
+      iceTransportPolicy: this.iceTransportPolicy
+    });
 
     for (const track of this.localStream.getTracks()) {
       connection.addTrack(track, this.localStream);
@@ -91,7 +97,16 @@ export class PeerManager {
       });
     };
 
+    connection.onicecandidateerror = (event) => {
+      console.warn(`[ICE] candidate error for ${peerId}: ${event.errorCode} ${event.errorText} (url: ${event.url})`);
+    };
+
+    connection.oniceconnectionstatechange = () => {
+      console.log(`[ICE] ${peerId}: iceConnectionState = ${connection.iceConnectionState}`);
+    };
+
     connection.onconnectionstatechange = () => {
+      console.log(`[RTC] ${peerId}: connectionState = ${connection.connectionState}`);
       if (connection.connectionState === "failed") {
         void (async () => {
           try {

@@ -26,7 +26,7 @@ import {
 import { MeshManager } from "./mesh.js";
 import { NoiseSuppressor } from "./noise-suppression.js";
 import { PushToTalk } from "./ptt.js";
-import { loadSettings, saveSettings } from "./settings-store.js";
+import { loadSettings, saveSettings, updateSettings } from "./settings-store.js";
 import {
   applySkinCss,
   applyTheme,
@@ -441,7 +441,9 @@ const run = async (): Promise<void> => {
     refreshParticipants();
   };
 
-  const resolvedIceServers = await getIceServers();
+  const resolvedIceServers = await getIceServers(signalingUrl);
+  console.log("[ICE] servers:", JSON.stringify(resolvedIceServers.map((s) => s.urls)));
+  console.log("[ICE] signaling URL:", signalingUrl);
 
   const mesh = new MeshManager({
     localStream: localAudio.stream,

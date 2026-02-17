@@ -8,6 +8,7 @@ type SignalMessage =
 type MeshOptions = {
   localStream: MediaStream;
   iceServers: RTCIceServer[];
+  iceTransportPolicy?: RTCIceTransportPolicy;
   onSignal: (message: SignalMessage) => void;
   onRemoteStream: (publicKeyHex: string, stream: MediaStream) => MediaStream | void;
   onPeerRemoved: (publicKeyHex: string) => void;
@@ -21,6 +22,7 @@ export class MeshManager {
     this.peerManager = new PeerManager({
       localStream: options.localStream,
       iceServers: options.iceServers,
+      iceTransportPolicy: options.iceTransportPolicy,
       sendSignal: (message) => {
         const context = this.contexts.get(message.target);
         if (!context) {
