@@ -23,6 +23,10 @@ jobs:
 
     runs-on: ${{ matrix.os }}
 
+    env:
+      APPIMAGE_EXTRACT_AND_RUN: "1"
+      NO_STRIP: "true"
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -55,7 +59,6 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          APPIMAGE_EXTRACT_AND_RUN: "1"
         with:
           projectPath: tavern/packages/client-desktop
           tauriScript: npx tauri
