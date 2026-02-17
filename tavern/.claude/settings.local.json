@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nfix: derive TURN host from signaling URL and fix Connect button\n\n- TURN host now auto-derived from signaling URL so changing servers\n  also routes media through the correct TURN relay\n- Add WSS/TURNS support \\(port 5349\\) when using secure signaling\n- Fix missing updateSettings import that broke the Connect button\n- Add iceTransportPolicy support for forcing TURN relay\n- Add ICE connection state and error logging for debugging\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git push)"
+    ]
+  }
+}
