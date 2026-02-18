@@ -86,7 +86,9 @@ export class NoiseSuppressor {
 
     if (audioContext.audioWorklet && !this.workletRnnoiseUnsupported) {
       try {
-        await audioContext.audioWorklet.addModule("rnnoise-worklet-processor.js");
+        await audioContext.audioWorklet.addModule(
+          new URL("rnnoise-worklet-processor.js", import.meta.url).toString()
+        );
         const workletNode = new AudioWorkletNode(audioContext, "rnnoise-worklet-processor", {
           numberOfInputs: 1,
           numberOfOutputs: 1,
@@ -105,7 +107,12 @@ export class NoiseSuppressor {
         const message = error instanceof Error ? error.message : String(error);
         if (message.toLowerCase().includes("not compiled for this environment")) {
           this.workletRnnoiseUnsupported = true;
+          this.enabled = false;
+          this.vadAvailable = false;
+          this.lastVadProbability = 1;
           console.warn("[rnnoise] AudioWorklet RNNoise runtime is incompatible with this environment");
+
+          return this.createPassthroughNode(audioContext, sourceNode);
         }
 
         console.log("[rnnoise] AudioWorklet init failed — using ScriptProcessorNode fallback", {
@@ -123,6 +130,15 @@ export class NoiseSuppressor {
     }
 
     return this.createLegacyScriptProcessorNode(audioContext, sourceNode);
+  }
+
+  private createPassthroughNode(
+    audioContext: AudioContext,
+    sourceNode: MediaStreamAudioSourceNode
+  ): AudioNode {
+    const passthrough = audioContext.createGain();
+    sourceNode.connect(passthrough);
+    return passthrough;
   }
 
   public setEnabled(enabled: boolean): void {
@@ -253,15 +269,11 @@ export class NoiseSuppressor {
         error: error instanceof Error ? error.message : String(error)
       });
 
-      const passthrough = audioContext.createGain();
-      sourceNode.connect(passthrough);
-      return passthrough;
+      return this.createPassthroughNode(audioContext, sourceNode);
     }
 
     if (!this.rnnoise || !this.denoiseState) {
-      const passthrough = audioContext.createGain();
-      sourceNode.connect(passthrough);
-      return passthrough;
+      return this.createPassthroughNode(audioContext, sourceNode);
     }
 
     const frameSize = this.rnnoise.frameSize;

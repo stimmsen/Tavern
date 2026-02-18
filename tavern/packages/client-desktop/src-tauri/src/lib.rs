@@ -29,7 +29,9 @@ pub fn run() {
         ])
         .setup(|app| {
             tray::setup_tray(app)?;
-            shortcuts::register_global_ptt(app.handle().clone(), "`")?;
+            if let Err(error) = shortcuts::register_global_ptt(app.handle().clone(), "`") {
+                eprintln!("[shortcuts] Initial shortcut registration failed: {error}");
+            }
 
             if let Some(window) = app.get_webview_window("main") {
                 let app_handle = app.handle().clone();

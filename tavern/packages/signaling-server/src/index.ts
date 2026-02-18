@@ -410,6 +410,15 @@ wss.on("connection", (socket, request) => {
         );
       }
 
+      logger.info({
+        event: "peer.joined-channel",
+        peerId,
+        publicKeyHex: message.identity.publicKeyHex,
+        tavernId: message.tavernId,
+        channelId: message.channelId,
+        existingPeers: joinResult.existingPeers.length
+      });
+
       const joinedMessage: ServerChannelJoinedMessage = {
         type: "channel-joined",
         tavernId: message.tavernId,
@@ -588,7 +597,13 @@ wss.on("connection", (socket, request) => {
     peerSockets.delete(peerId);
     peerState.delete(peerId);
 
-    logger.info({ event: "peer.disconnected", peerId, roomId: leaveResult?.roomId ?? null });
+    logger.info({
+      event: "peer.disconnected",
+      peerId,
+      tavernId: current?.location.tavernId ?? null,
+      channelId: current?.location.channelId ?? null,
+      roomId: leaveResult?.roomId ?? null
+    });
   });
 
   socket.on("error", (error) => {

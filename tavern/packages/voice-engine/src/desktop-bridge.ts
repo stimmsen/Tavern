@@ -35,15 +35,15 @@ const invoke = async (command: string, payload?: Record<string, unknown>): Promi
 };
 
 export const setTrayState = async (state: TrayState): Promise<void> => {
-  await invoke("set_tray_state", { state });
+  await invoke("set_tray_state", { payload: { state } });
 };
 
 export const setGlobalPttKey = async (accelerator: string): Promise<void> => {
-  await invoke("set_global_ptt_key", { accelerator });
+  await invoke("set_global_ptt_key", { payload: { accelerator } });
 };
 
 export const notifyDesktop = async (title: string, body: string): Promise<void> => {
-  await invoke("notify_desktop", { title, body });
+  await invoke("notify_desktop", { payload: { title, body } });
 };
 
 export const minimizeMainWindow = async (): Promise<void> => {

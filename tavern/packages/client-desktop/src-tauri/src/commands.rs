@@ -42,16 +42,35 @@ pub fn set_global_ptt_key(
     payload: PttPayload,
     state: tauri::State<'_, AppState>,
 ) -> Result<(), String> {
-    if payload.accelerator.trim().is_empty() {
+    let accelerator = payload.accelerator.trim().to_string();
+
+    if accelerator.is_empty() {
         return Err("PTT key cannot be empty".to_string());
     }
 
-    if let Ok(mut key) = state.ptt_key.lock() {
-        *key = payload.accelerator.clone();
+    let previous_key = if let Ok(mut key) = state.ptt_key.lock() {
+        if *key == accelerator {
+            return Ok(());
+        }
+
+        let previous = key.clone();
+        *key = accelerator.clone();
+        Some(previous)
+    } else {
+        None
+    };
+
+    if let Err(error) = shortcuts::register_global_ptt(app, accelerator.as_str()) {
+        if let Some(previous) = previous_key {
+            if let Ok(mut key) = state.ptt_key.lock() {
+                *key = previous;
+            }
+        }
+
+        return Err(format!("Failed to register shortcut: {error}"));
     }
 
-    shortcuts::register_global_ptt(app, payload.accelerator.as_str())
-        .map_err(|error| format!("Failed to register shortcut: {error}"))
+    Ok(())
 }
 
 #[tauri::command]
