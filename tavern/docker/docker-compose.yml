@@ -30,12 +30,10 @@ services:
 
   # ── TURN Relay Server ─────────────────────────────────────────────
   # coturn provides TURN/STUN relay for peers behind restrictive NATs.
+  # Uses host networking to avoid Docker NAT issues with UDP relay ports.
   coturn:
     image: coturn/coturn:latest
-    ports:
-      - "3478:3478/udp"
-      - "3478:3478/tcp"
-      - "49152-49252:49152-49252/udp"
+    network_mode: host
     environment:
       # Shared secret for TURN authentication (change in production!)
       TAVERN_TURN_SECRET: "${TAVERN_TURN_SECRET:-tavern-dev-secret}"
@@ -45,6 +43,9 @@ services:
       - "--realm=${TAVERN_DOMAIN:-localhost}"
       - "--use-auth-secret"
       - "--static-auth-secret=${TAVERN_TURN_SECRET:-tavern-dev-secret}"
+      - "--external-ip=159.203.140.89"
+      - "--listening-ip=0.0.0.0"
+      - "--relay-ip=0.0.0.0"
       - "--listening-port=3478"
       - "--min-port=49152"
       - "--max-port=49252"
@@ -54,6 +55,7 @@ services:
       - "--no-tls"
       - "--no-dtls"
       - "--log-file=stdout"
+      - "--verbose"
     restart: unless-stopped
 
 volumes:
