@@ -51,6 +51,7 @@ services:
       - "--max-port=49252"
       - "--fingerprint"
       - "--lt-cred-mech"
+      - "--allowed-peer-ip=0.0.0.0-255.255.255.255"
       - "--no-cli"
       - "--no-tls"
       - "--no-dtls"
